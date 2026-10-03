@@ -4,7 +4,6 @@ import SwiftUI
 
 enum Level {
     static func color(_ pct: Double) -> Color { pct >= 90 ? .red : pct >= 75 ? .orange : .accentColor }
-    static func nsColor(_ pct: Double) -> NSColor { pct >= 90 ? .systemRed : pct >= 75 ? .systemOrange : .controlAccentColor }
 }
 
 struct Ring: View {
@@ -71,7 +70,7 @@ enum MenuBarRing {
             arc.appendArc(withCenter: center, radius: r.width / 2, startAngle: 90, endAngle: 90 - 360 * CGFloat(min(percent, 100) / 100), clockwise: true)
             arc.lineWidth = 2.5
             arc.lineCapStyle = .round
-            (percent >= 75 || !weekly ? Level.nsColor(percent) : NSColor.systemTeal).setStroke()
+            (percent >= 75 || !weekly ? NSColor(Level.color(percent)) : NSColor.systemTeal).setStroke()
             arc.stroke()
             return true
         }

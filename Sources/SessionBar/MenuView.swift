@@ -159,7 +159,7 @@ struct MenuView: View {
             .contextMenu {
                 Button("Rename…") { confirm = .renameLive(s) }
                     .disabled(s.kind == .background || model.typingBlockers[s.sessionId] != nil)
-                Button(s.kind == .interactive ? "Show its window" : "Open in \(model.terminalApp.title)") { model.open(s) }
+                Button(s.kind == .interactive ? "Show its window" : "Open in iTerm") { model.open(s) }
                 if let url = s.phoneURL { Button("Copy phone link") { copy(url.absoluteString) } }
                 Button("Copy session ID") { copy(s.sessionId) }
             }
@@ -179,12 +179,12 @@ struct MenuView: View {
             }
             Spacer(minLength: 4)
             Text(Fmt.ago(h.lastActive)).font(.system(size: 11)).foregroundStyle(.secondary)
-            IconButton(symbol: "terminal", help: "Resume in \(model.terminalApp.title)") { model.resumeInTerminal(h) }
+            IconButton(symbol: "terminal", help: "Resume in iTerm") { model.resumeInTerminal(h) }
             IconButton(symbol: "trash", help: "Delete session") { confirm = .delete(h) }
         } action: { model.resumeInTerminal(h) }
         .contextMenu {
             Button("Rename…") { confirm = .renameClosed(h) }
-            Button("Resume in \(model.terminalApp.title)") { model.resumeInTerminal(h) }
+            Button("Resume in iTerm") { model.resumeInTerminal(h) }
             Button("Copy session ID") { copy(h.sessionId) }
         }
     }
@@ -200,8 +200,8 @@ struct MenuView: View {
         switch (s.isOnPhone, s.kind) {
         case (false, .interactive): return "Also open on your phone (keeps running here)"
         case (true, .interactive): return "On your phone. Click to disconnect the phone; it keeps running here."
-        case (false, .background): return s.isLeftover ? "Reopen it in \(model.terminalApp.title) and on your phone"
-                                                       : "Open in \(model.terminalApp.title) and on your phone"
+        case (false, .background): return s.isLeftover ? "Reopen it in iTerm and on your phone"
+                                                       : "Open in iTerm and on your phone"
         case (true, .background): return "On your phone only. Click to stop it."
         }
     }
@@ -219,7 +219,7 @@ struct MenuView: View {
                 Button("Cancel") { confirm = nil }
                 Button(s.isLeftover ? "Clear" : "Stop") { confirm = nil; model.stop(s) }.keyboardShortcut(.defaultAction)
             case .openWithPhone(let s):
-                Text("It has no window. Open it in \(model.terminalApp.title) with phone access on?").fixedSize(horizontal: false, vertical: true)
+                Text("It has no window. Open it in iTerm with phone access on?").fixedSize(horizontal: false, vertical: true)
                 Spacer()
                 Button("Cancel") { confirm = nil }
                 Button("Open") { confirm = nil; model.phoneOn(s) }.keyboardShortcut(.defaultAction)
@@ -285,7 +285,7 @@ struct NewSessionPanel: View {
             TextField("e.g. fix-login", text: $name).textFieldStyle(.roundedBorder)
             HStack {
                 Spacer()
-                Button { start(phone: false) } label: { Label("Open in \(model.terminalApp.title)", systemImage: "terminal") }
+                Button { start(phone: false) } label: { Label("Open in iTerm", systemImage: "terminal") }
                 Button { start(phone: true) } label: { Label("Start for phone", systemImage: "iphone") }
                     .buttonStyle(.borderedProminent)
             }

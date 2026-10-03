@@ -45,8 +45,6 @@ final class SessionBarCoreTests: XCTestCase {
         let typed = "────\n❯ half a message\n────"
         XCTAssertEqual(SessionWindow.draft(in: typed), "half a message")
         XCTAssertNil(SessionWindow.draft(in: "no prompt here"))
-        XCTAssertTrue(SessionWindow.isPlaceholder(#"Try "fix lint errors""#))
-        XCTAssertFalse(SessionWindow.isPlaceholder("fix lint errors"))
         XCTAssertEqual(SessionWindow.draft(in: "❯ /remote-control\n  ⎿  done\n❯ "), "", "only the last prompt line counts")
     }
 
@@ -282,16 +280,6 @@ final class SessionBarCoreTests: XCTestCase {
 
     func testAppleScriptEscape() {
         XCTAssertEqual(ClaudeCLI.appleScriptEscape(#"cd '/a "b"' && x\y"#), #"cd '/a \"b\"' && x\\y"#)
-    }
-
-    @MainActor func testTerminalChoiceRemembersAndDefaultsToITerm() {
-        let key = TerminalApp.defaultsKey
-        let saved = UserDefaults.standard.string(forKey: key)
-        defer { UserDefaults.standard.set(saved, forKey: key) }
-        UserDefaults.standard.set("terminal", forKey: key)
-        XCTAssertEqual(TerminalApp.preferred, .terminal)
-        UserDefaults.standard.removeObject(forKey: key)
-        XCTAssertEqual(TerminalApp.preferred, TerminalApp.iterm.isInstalled ? .iterm : .terminal)
     }
 
     func testCleanEnvironmentDropsClaudeSessionMarkers() {

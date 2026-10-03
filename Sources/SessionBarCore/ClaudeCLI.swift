@@ -60,7 +60,7 @@ public struct ClaudeCLI: Sendable {
         public var errorDescription: String? {
             switch self {
             case .untrusted(let f):
-                return "\((f as NSString).lastPathComponent) isn't a trusted folder yet. Open it once in iTerm or Terminal and accept the trust prompt, then try again."
+                return "\((f as NSString).lastPathComponent) isn't a trusted folder yet. Open it once in iTerm and accept the trust prompt, then try again."
             case .failed(let msg): return msg
             }
         }
@@ -154,20 +154,11 @@ public struct ClaudeCLI: Sendable {
         return false
     }
 
-    /// Turns phone access on or off for a session running in iTerm or Terminal, by typing
-    /// /remote-control into it, exactly as you would. The session keeps running on the Mac.
+    /// Turns phone access on or off for a session running in iTerm, by typing /remote-control into
+    /// it, exactly as you would. The session keeps running on the Mac.
     @MainActor
     public func setPhone(_ s: LiveSession, on: Bool) async throws {
-        guard s.kind == .interactive, let pid = s.pid else { throw Failure.failed("\(s.name) has no window to type into.") }
-        // Typing into a busy session or a pending question could answer it by accident.
-        guard s.state == .idle else {
-            throw Failure.failed("\(s.name) is \(s.state == .busy ? "working" : "waiting on a question"). Try again once it's idle.")
-        }
-        let win = try SessionWindow.find(pid: pid)
-        if !on && win.host == .terminal {
-            // Turning it off means picking Disconnect from a menu, which needs arrow keys.
-            throw Failure.failed("In Terminal, type /remote-control in the session and choose Disconnect.")
-        }
+        let (pid, win) = try typingTarget(s)
         try typeCommand("/remote-control", into: win, sessionName: s.name)
         if on {
             guard await waitForPhone(pid: pid, on: true, timeout: 15) else {
@@ -189,10 +180,16 @@ public struct ClaudeCLI: Sendable {
     public func rename(_ s: LiveSession, to name: String) async throws {
         let title = name.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "\n", with: " ")
         guard !title.isEmpty else { return }
-        guard s.kind == .interactive, let pid = s.pid else { throw Failure.failed("\(s.name) has no window to type into.") }
-        guard s.state == .idle else { throw Failure.failed("\(s.name) is busy. Try again once it's idle.") }
-        let win = try SessionWindow.find(pid: pid)
+        let (_, win) = try typingTarget(s)
         try typeCommand("/rename \(title)", into: win, sessionName: s.name)
+    }
+
+    /// Only idle iTerm sessions: typing into a busy session or a pending question could answer it by accident.
+    @MainActor
+    func typingTarget(_ s: LiveSession) throws -> (Int32, SessionWindow) {
+        guard s.kind == .interactive, let pid = s.pid else { throw Failure.failed("\(s.name) has no window to type into.") }
+        if let why = Self.typingBlocker(s) { throw Failure.failed(why) }
+        return (pid, try SessionWindow.find(pid: pid))
     }
 
     @MainActor
@@ -202,39 +199,31 @@ public struct ClaudeCLI: Sendable {
         if s.state == .blocked { return "Available after you answer its question." }
         guard let pid = s.pid else { return "This session has no window." }
         switch owningApp(pid: pid)?.bundleIdentifier {
-        case TerminalApp.iterm.bundleId, TerminalApp.terminal.bundleId: return nil
+        case SessionWindow.itermBundleId: return nil
         case let other: return "Runs in \(other.flatMap { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0)?.deletingPathExtension().lastPathComponent } ?? "an app") that Session Bar can't type into."
         }
     }
 
-    /// Types a command and presses Return, without ever mixing it into text you were typing.
-    /// iTerm: type it, read the prompt line back; it must be exactly the command (typing replaces a grey
-    /// suggestion). Anything else means there was a draft, so erase what was typed and stop.
-    /// Terminal can't type without Return, so it only goes ahead when the prompt looks empty.
+    /// Types a command and presses Return, without ever mixing it into text you were typing: type it,
+    /// read the prompt line back; it must be exactly the command (typing replaces a grey suggestion).
+    /// Anything else means there was a draft, so erase what was typed and stop.
     @MainActor
     func typeCommand(_ command: String, into win: SessionWindow, sessionName: String) throws {
-        let draftError = Failure.failed("\(sessionName) has unsent text in its prompt. Send or clear it, then try again.")
-        switch win.host {
-        case .iterm:
-            try win.type(command, enter: false)
-            Thread.sleep(forTimeInterval: 0.5)
-            guard SessionWindow.draft(in: try win.screen()) == command else {
-                try win.erase(command.count)
-                throw draftError
-            }
-            try win.type("", enter: true)
-        case .terminal:
-            if let d = SessionWindow.draft(in: try win.screen()), !d.isEmpty, !SessionWindow.isPlaceholder(d) { throw draftError }
-            try win.type(command)
+        try win.type(command, enter: false)
+        Thread.sleep(forTimeInterval: 0.5)
+        guard SessionWindow.draft(in: try win.screen()) == command else {
+            try win.erase(command.count)
+            throw Failure.failed("\(sessionName) has unsent text in its prompt. Send or clear it, then try again.")
         }
+        try win.type("", enter: true)
     }
 
-    /// A background session has no window, so reopen it in iTerm/Terminal with remote control on:
+    /// A background session has no window, so reopen it in iTerm with remote control on:
     /// you get it on the Mac and on your phone. Same session id, same history.
     @MainActor
-    public func openWithPhone(_ s: LiveSession, app: TerminalApp) async throws {
+    public func openWithPhone(_ s: LiveSession) async throws {
         try await stop(s)
-        try openInTerminal(ShellLine.resume(s.sessionId, cwd: s.cwd, phone: true), app: app)
+        try openInITerm(ShellLine.resume(s.sessionId, cwd: s.cwd, phone: true))
     }
 
     @MainActor
@@ -260,26 +249,14 @@ public struct ClaudeCLI: Sendable {
         try await run(Args.newOnPhone(name: name), cwd: cwd)
     }
 
-    @MainActor
-    public func openInTerminal(_ line: String, app: TerminalApp) throws {
-        if app == .iterm, app.isInstalled { return try openInITerm(line) }
-        // Terminal: a self-deleting `.command` file needs no Automation permission.
-        try FileManager.default.createDirectory(at: paths.appDir, withIntermediateDirectories: true)
-        let url = paths.appDir.appendingPathComponent("launch-\(UUID().uuidString.prefix(8)).command")
-        let script = "#!/bin/zsh -l\nrm -f \"$0\"\n\(line)\n"
-        try script.write(to: url, atomically: true, encoding: .utf8)
-        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
-        let open = Process()
-        open.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-        open.arguments = ["-a", "Terminal", url.path]
-        try open.run()
-    }
-
     /// iTerm doesn't reliably run `.command` files handed to it, so use its AppleScript API: a new
     /// tab in the front window (a new window only when none is open), then type the line into the
     /// user's normal shell. macOS asks once for permission to control iTerm.
     @MainActor
-    func openInITerm(_ line: String) throws {
+    public func openInITerm(_ line: String) throws {
+        guard NSWorkspace.shared.urlForApplication(withBundleIdentifier: SessionWindow.itermBundleId) != nil else {
+            throw Failure.failed("Session Bar opens sessions in iTerm, which isn't installed. Get it from iterm2.com.")
+        }
         let source = """
         tell application "iTerm"
             activate
