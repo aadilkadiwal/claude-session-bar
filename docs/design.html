@@ -1,0 +1,562 @@
+<title>Session Bar Design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Source+Sans+3:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a spec page. Each section = one real mockup on the left, its explanation on the right; flows as numbered steps. */
+:root{
+  --bg:#f3f4f7; --paper:#ffffff; --ink:#1b1f2a; --muted:#5d6475; --line:#dde0e8;
+  --accent:#2c5fd8; --accent-soft:#e3eafb;
+  --ok:#1f9d55; --warn:#c9820a; --bad:#c43c3c;
+  --menu:#f6f6f8ee; --menu-line:#d6d8de; --bar:#e9eaee; --hover:#2c5fd8; --hover-ink:#fff;
+  --ring-a:#2c5fd8; --ring-b:#0e9f9a; --ring-track:#e2e5ec;
+  --code:#eef0f5;
+  --f-display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --f-body:"Source Sans 3",ui-sans-serif,system-ui,sans-serif;
+  --f-mac:-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#12141a; --paper:#1a1d25; --ink:#e7e9ef; --muted:#9aa1b2; --line:#2c303b;
+  --accent:#7aa2ff; --accent-soft:#1f2a45;
+  --ok:#3fca7a; --warn:#e6a53a; --bad:#ef6b6b;
+  --menu:#26282fee; --menu-line:#3a3d47; --bar:#202228; --hover:#3d6fe6; --hover-ink:#fff;
+  --ring-a:#7aa2ff; --ring-b:#3cc9c3; --ring-track:#343846; --code:#232733; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12141a; --paper:#1a1d25; --ink:#e7e9ef; --muted:#9aa1b2; --line:#2c303b;
+  --accent:#7aa2ff; --accent-soft:#1f2a45;
+  --ok:#3fca7a; --warn:#e6a53a; --bad:#ef6b6b;
+  --menu:#26282fee; --menu-line:#3a3d47; --bar:#202228; --hover:#3d6fe6; --hover-ink:#fff;
+  --ring-a:#7aa2ff; --ring-b:#3cc9c3; --ring-track:#343846; --code:#232733; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.55}
+.wrap{max-width:1120px;margin:0 auto;padding-inline:20px;padding-block:40px 80px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0;line-height:1.15}
+h1{font-size:clamp(2rem,4.5vw,3rem)}
+h2{font-size:1.6rem}
+h3{font-size:1.1rem}
+p{margin:0}
+.lede{color:var(--muted);max-width:62ch;font-size:1.1rem;margin-top:12px}
+.eyebrow{font-size:.75rem;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);font-weight:600}
+code,.mono{font-family:var(--f-mono);font-size:.82em}
+code{background:var(--code);padding:1px 6px;border-radius:4px;overflow-wrap:anywhere}
+section{margin-top:64px;display:grid;gap:20px}
+.sec-head{display:grid;gap:6px;max-width:70ch}
+.sec-head p{color:var(--muted)}
+.two{display:grid;grid-template-columns:minmax(0,380px) minmax(0,1fr);gap:28px;align-items:start}
+@media (max-width:820px){.two{grid-template-columns:minmax(0,1fr)}}
+.note{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:18px 20px;display:grid;gap:10px;min-width:0}
+.tag{display:inline-block;font-size:.72rem;font-weight:600;padding:2px 8px;border-radius:99px;letter-spacing:.03em}
+.tag.verify{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn)}
+.tag.ok{background:color-mix(in srgb,var(--ok) 16%,transparent);color:var(--ok)}
+.tag.ex{background:var(--accent-soft);color:var(--accent)}
+
+/* ---------- macOS menu bar ---------- */
+.desk{border-radius:12px;overflow:hidden;border:1px solid var(--line);background:linear-gradient(160deg,color-mix(in srgb,var(--accent) 22%,var(--bg)),color-mix(in srgb,var(--ring-b) 18%,var(--bg)));min-width:0}
+.menubar{display:flex;align-items:center;gap:18px;justify-content:flex-end;background:var(--bar);font-family:var(--f-mac);font-size:13px;padding:5px 14px;color:var(--ink);overflow-x:auto;white-space:nowrap}
+.menubar .left{margin-right:auto;font-weight:600}
+.mb-item{display:inline-flex;align-items:center;gap:6px;padding:2px 6px;border-radius:5px}
+.mb-item.ours{background:color-mix(in srgb,var(--accent) 22%,transparent);outline:1.5px dashed var(--accent);outline-offset:2px}
+.mb-ring{width:15px;height:15px}
+.desk-body{padding:26px 18px 30px;display:flex;justify-content:flex-end}
+.variants{display:flex;flex-wrap:wrap;gap:10px;margin-top:4px}
+.variant{font-family:var(--f-mac);font-size:13px;background:var(--bar);border:1px solid var(--line);border-radius:6px;padding:4px 10px;display:inline-flex;gap:6px;align-items:center}
+
+/* ---------- dropdown ---------- */
+.dd{font-family:var(--f-mac);font-size:13px;width:100%;max-width:380px;background:var(--menu);backdrop-filter:blur(20px);border:1px solid var(--menu-line);border-radius:12px;box-shadow:0 18px 50px -12px #0005;padding:6px;color:var(--ink)}
+.dd-sec{padding:6px 8px;font-size:11px;font-weight:600;color:var(--muted);display:flex;justify-content:space-between}
+.dd hr{border:0;border-top:1px solid var(--menu-line);margin:6px 4px}
+.hot{cursor:pointer;border-radius:7px;position:relative}
+.hot:hover,.hot:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.hot.sel{outline:2px solid var(--accent);outline-offset:-2px;background:var(--accent-soft)}
+.usage{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:8px}
+.u{display:flex;gap:10px;align-items:center;padding:6px}
+.u svg{flex:none}
+.u b{display:block;font-size:13px}
+.u small{color:var(--muted);font-size:11px;display:block}
+.meta-line{padding:0 14px 6px;font-size:11px;color:var(--muted);display:flex;justify-content:space-between;gap:8px}
+.row{display:grid;grid-template-columns:14px minmax(0,1fr) auto;gap:8px;align-items:center;padding:6px 8px}
+.row .t{min-width:0}
+.row .n{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+.row .p{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--muted)}
+.dot.busy{background:var(--ok);box-shadow:0 0 0 3px color-mix(in srgb,var(--ok) 25%,transparent)}
+.dot.idle{background:transparent;border:1.5px solid var(--ok)}
+.dot.blocked{background:var(--warn)}
+.dot.closed{background:transparent;border:1.5px solid var(--muted)}
+.acts{display:flex;gap:4px;align-items:center}
+.ib{width:26px;height:24px;border-radius:6px;display:grid;place-items:center;border:1px solid transparent;color:var(--muted)}
+.ib.on{color:var(--accent);background:var(--accent-soft);border-color:color-mix(in srgb,var(--accent) 35%,transparent)}
+.ib svg{width:14px;height:14px}
+.pill{font-size:10px;font-weight:600;padding:1px 6px;border-radius:99px;background:var(--code);color:var(--muted)}
+.pill.bg{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn)}
+.when{font-size:11px;color:var(--muted)}
+.foot{display:flex;justify-content:space-between;padding:4px}
+.fb{padding:6px 10px;border-radius:6px;font-weight:500}
+.fb.primary{color:var(--accent)}
+
+/* explain panel */
+.explain{position:sticky;top:16px}
+.explain h3{display:flex;align-items:center;gap:8px}
+.explain dl{display:grid;grid-template-columns:110px minmax(0,1fr);gap:8px 14px;margin:0}
+.explain dt{font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);padding-top:2px}
+.explain dd{margin:0;min-width:0}
+.explain ol{margin:0;padding-left:20px;display:grid;gap:4px}
+.hint{font-size:.9rem;color:var(--muted)}
+@media (max-width:820px){.explain{position:static}.explain dl{grid-template-columns:minmax(0,1fr)}}
+
+/* ---------- details window ---------- */
+.win{font-family:var(--f-mac);font-size:13px;background:var(--paper);border:1px solid var(--menu-line);border-radius:12px;box-shadow:0 24px 60px -20px #0006;overflow:hidden;min-width:0}
+.titlebar{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line);background:var(--bar)}
+.lights{display:flex;gap:6px}.lights i{width:11px;height:11px;border-radius:50%;display:block}
+.lights i:nth-child(1){background:#ff5f57}.lights i:nth-child(2){background:#febc2e}.lights i:nth-child(3){background:#28c840}
+.titlebar .ttl{flex:1;text-align:center;font-weight:600;color:var(--muted)}
+.wbody{display:grid;grid-template-columns:150px minmax(0,1fr);min-height:420px}
+@media (max-width:640px){.wbody{grid-template-columns:minmax(0,1fr)}.side{display:flex;overflow-x:auto;border-right:0!important;border-bottom:1px solid var(--line)}}
+.side{border-right:1px solid var(--line);padding:10px 8px;display:grid;align-content:start;gap:2px;background:color-mix(in srgb,var(--bar) 50%,var(--paper))}
+.side button{all:unset;cursor:pointer;padding:6px 10px;border-radius:6px;white-space:nowrap}
+.side button[aria-selected="true"]{background:var(--accent);color:#fff}
+.side button:focus-visible{outline:2px solid var(--accent)}
+.pane{padding:14px;min-width:0;display:grid;gap:12px;align-content:start}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.search{flex:1 1 180px;border:1px solid var(--line);border-radius:7px;padding:5px 10px;color:var(--muted);background:var(--bg)}
+.chip{border:1px solid var(--line);border-radius:99px;padding:3px 10px;font-size:12px}
+.chip.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.btn{border:1px solid var(--line);border-radius:7px;padding:4px 10px;font-size:12px;background:var(--paper)}
+.btn.danger{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 40%,transparent)}
+.btn.blue{background:var(--accent);color:#fff;border-color:var(--accent)}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;min-width:760px;font-variant-numeric:tabular-nums}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-size:11px;color:var(--muted);font-weight:600;background:color-mix(in srgb,var(--bar) 60%,var(--paper))}
+tr:last-child td{border-bottom:0}
+tr.picked td{background:var(--accent-soft)}
+td .mono{color:var(--muted)}
+.statusbar{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;font-size:12px;color:var(--muted)}
+.big-rings{display:flex;flex-wrap:wrap;gap:24px}
+.big-rings figure{margin:0;display:grid;justify-items:center;gap:4px;text-align:center}
+.big-rings figcaption b{display:block}
+.big-rings figcaption small{color:var(--muted)}
+.bars{display:grid;gap:6px}
+.barrow{display:grid;grid-template-columns:150px minmax(0,1fr) 60px;gap:10px;align-items:center;font-size:12px}
+.barrow .track{height:8px;background:var(--ring-track);border-radius:4px;overflow:hidden}
+.barrow .fill{height:100%;background:var(--ring-a);border-radius:4px}
+.setting{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+.setting small{display:block;color:var(--muted)}
+.stepper{display:flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.stepper span{padding:4px 10px}.stepper span+span{border-left:1px solid var(--line)}
+.toggle{width:34px;height:20px;border-radius:99px;background:var(--accent);position:relative}
+.toggle::after{content:"";position:absolute;top:2px;right:2px;width:16px;height:16px;border-radius:50%;background:#fff}
+.toggle.off{background:var(--ring-track)}.toggle.off::after{right:auto;left:2px}
+
+/* sheets */
+.sheets{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:20px}
+.sheet{font-family:var(--f-mac);font-size:13px;background:var(--paper);border:1px solid var(--menu-line);border-radius:12px;padding:16px;display:grid;gap:12px;box-shadow:0 14px 40px -18px #0005;min-width:0}
+.sheet h4{margin:0;font-size:14px}
+.field{display:grid;gap:4px}
+.field label{font-size:11px;color:var(--muted);font-weight:600}
+.input{border:1px solid var(--line);border-radius:7px;padding:6px 10px;background:var(--bg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.recent{display:flex;flex-wrap:wrap;gap:6px}
+.sheet .btns{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.cap{font-size:.85rem;color:var(--muted);font-family:var(--f-body)}
+
+/* flows */
+.flows{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,330px),1fr));gap:16px}
+.flow{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:18px;display:grid;gap:10px;align-content:start;min-width:0}
+.flow .trigger{font-size:.85rem;color:var(--muted)}
+.flow ol{margin:0;padding-left:22px;display:grid;gap:6px}
+.flow li::marker{color:var(--accent);font-weight:700}
+pre.mermaid{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:16px;overflow-x:auto;margin:0}
+.verify-list{display:grid;gap:10px}
+.verify-list .note{grid-template-columns:auto minmax(0,1fr);align-items:start}
+@media (prefers-reduced-motion:no-preference){.dot.busy{animation:pulse 1.6s ease-in-out infinite}@keyframes pulse{50%{box-shadow:0 0 0 6px transparent}}}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-phone" viewBox="0 0 16 16"><rect x="4" y="1.5" width="8" height="13" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="8" cy="12" r=".9" fill="currentColor"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 16 16"><rect x="4" y="4" width="8" height="8" rx="1.5" fill="currentColor"/></symbol>
+  <symbol id="i-term" viewBox="0 0 16 16"><rect x="1.5" y="2.5" width="13" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M4.5 6.5l2 1.6-2 1.6M8 10h3.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 16 16"><rect x="5" y="5" width="8.5" height="8.5" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M3 10.5V3.8C3 3.3 3.3 3 3.8 3h6.7" fill="none" stroke="currentColor" stroke-width="1.4"/></symbol>
+</svg>
+
+<div class="wrap">
+  <header style="display:grid;gap:10px">
+    <span class="eyebrow">Design walkthrough · v0.1 · 3 Oct 2026</span>
+    <h1>Session Bar</h1>
+    <p class="lede">A small macOS menu bar app for Claude Code. It shows how much of your usage limit is left, lists your sessions as they start and stop, turns phone access on or off for a session, and starts new sessions without opening a terminal first.</p>
+    <p class="hint">Session names and folders below are real ones from your Mac. Usage percentages are <span class="tag ex">example</span> values.</p>
+  </header>
+
+  <!-- 1. MENU BAR -->
+  <section id="menubar">
+    <div class="sec-head">
+      <span class="eyebrow">Screen 1</span>
+      <h2>The menu bar icon</h2>
+      <p>A small ring plus a number sits next to Wi-Fi and the clock. The ring fills as you use your 5-hour limit and changes color as it gets close.</p>
+    </div>
+    <div class="desk">
+      <div class="menubar">
+        <span class="left"> Terminal&nbsp;&nbsp;<span style="font-weight:400">Shell&nbsp;&nbsp;Edit&nbsp;&nbsp;View</span></span>
+        <span class="mb-item ours" title="Session Bar">
+          <svg class="mb-ring" viewBox="0 0 20 20"><circle cx="10" cy="10" r="7.5" fill="none" stroke="var(--ring-track)" stroke-width="3"/><circle cx="10" cy="10" r="7.5" fill="none" stroke="var(--ring-a)" stroke-width="3" stroke-dasharray="19.8 47.1" transform="rotate(-90 10 10)" stroke-linecap="round"/></svg>
+          42% · 3
+        </span>
+        <span class="mb-item">Wi-Fi</span>
+        <span class="mb-item">Sat 3 Oct 4:12 PM</span>
+      </div>
+      <div class="desk-body"><span class="hint" style="color:var(--ink)">Dashed outline = Session Bar. "42%" is 5-hour usage, "3" is how many sessions are running.</span></div>
+    </div>
+    <div class="note">
+      <h3>What the icon can show (pick one in Settings)</h3>
+      <div class="variants">
+        <span class="variant"><svg class="mb-ring" viewBox="0 0 20 20"><circle cx="10" cy="10" r="7.5" fill="none" stroke="var(--ring-track)" stroke-width="3"/><circle cx="10" cy="10" r="7.5" fill="none" stroke="var(--ring-a)" stroke-width="3" stroke-dasharray="19.8 47.1" transform="rotate(-90 10 10)"/></svg>42% · 3</span>
+        <span class="variant"><svg class="mb-ring" viewBox="0 0 20 20"><circle cx="10" cy="10" r="7.5" fill="none" stroke="var(--ring-track)" stroke-width="3"/><circle cx="10" cy="10" r="7.5" fill="none" stroke="var(--ring-a)" stroke-width="3" stroke-dasharray="19.8 47.1" transform="rotate(-90 10 10)"/></svg>42% / 18%</span>
+        <span class="variant"><svg class="mb-ring" viewBox="0 0 20 20"><circle cx="10" cy="10" r="7.5" fill="none" stroke="var(--ring-track)" stroke-width="3"/><circle cx="10" cy="10" r="7.5" fill="none" stroke="var(--ring-a)" stroke-width="3" stroke-dasharray="19.8 47.1" transform="rotate(-90 10 10)"/></svg>ring only</span>
+        <span class="variant"><svg class="mb-ring" viewBox="0 0 20 20"><circle cx="10" cy="10" r="7.5" fill="none" stroke="var(--ring-track)" stroke-width="3"/><circle cx="10" cy="10" r="7.5" fill="none" stroke="var(--warn)" stroke-width="3" stroke-dasharray="39 47.1" transform="rotate(-90 10 10)"/></svg>83% · 3 <span class="cap">(turns amber above 75%, red above 90%)</span></span>
+      </div>
+      <p class="hint">Clicking the icon opens the dropdown below. Nothing else happens on click.</p>
+    </div>
+  </section>
+
+  <!-- 2. DROPDOWN -->
+  <section id="dropdown">
+    <div class="sec-head">
+      <span class="eyebrow">Screen 2</span>
+      <h2>The dropdown</h2>
+      <p><b>Click any part of the dropdown</b> to see what it shows, what happens when you click it, and which command runs behind it.</p>
+    </div>
+    <div class="two">
+      <div class="dd" role="group" aria-label="Dropdown mockup">
+        <div class="usage">
+          <div class="u hot" tabindex="0" data-k="ring5">
+            <svg width="44" height="44" viewBox="0 0 44 44"><circle cx="22" cy="22" r="18" fill="none" stroke="var(--ring-track)" stroke-width="5"/><circle cx="22" cy="22" r="18" fill="none" stroke="var(--ring-a)" stroke-width="5" stroke-dasharray="47.5 113.1" transform="rotate(-90 22 22)" stroke-linecap="round"/><text x="22" y="26" text-anchor="middle" font-size="11" font-weight="600" fill="var(--ink)" font-family="var(--f-mac)">42%</text></svg>
+            <span><b>5-hour</b><small>resets 6:40 PM</small></span>
+          </div>
+          <div class="u hot" tabindex="0" data-k="ringw">
+            <svg width="44" height="44" viewBox="0 0 44 44"><circle cx="22" cy="22" r="18" fill="none" stroke="var(--ring-track)" stroke-width="5"/><circle cx="22" cy="22" r="18" fill="none" stroke="var(--ring-b)" stroke-width="5" stroke-dasharray="20.4 113.1" transform="rotate(-90 22 22)" stroke-linecap="round"/><text x="22" y="26" text-anchor="middle" font-size="11" font-weight="600" fill="var(--ink)" font-family="var(--f-mac)">18%</text></svg>
+            <span><b>Weekly</b><small>resets Thu 9:00 AM</small></span>
+          </div>
+        </div>
+        <div class="meta-line hot" tabindex="0" data-k="meta"><span>Opus 5.5 (1M) · Max plan</span><span>updated 1 min ago</span></div>
+        <hr>
+        <div class="dd-sec"><span>RUNNING NOW · 3</span><span>newest first</span></div>
+        <div class="row hot" tabindex="0" data-k="row-run">
+          <span class="dot busy"></span>
+          <span class="t"><span class="n">personal-a8</span><span class="p">~/Desktop/Project/Personal · working</span></span>
+          <span class="acts">
+            <span class="ib on hot" tabindex="0" data-k="phone-on" title="On your phone"><svg><use href="#i-phone"/></svg></span>
+            <span class="ib hot" tabindex="0" data-k="stop" title="Stop"><svg><use href="#i-stop"/></svg></span>
+          </span>
+        </div>
+        <div class="row hot" tabindex="0" data-k="row-run">
+          <span class="dot idle"></span>
+          <span class="t"><span class="n">notes-app</span><span class="p">~/…/Personal/notes-app · idle 12 min</span></span>
+          <span class="acts">
+            <span class="ib hot" tabindex="0" data-k="phone-term" title="Send to phone"><svg><use href="#i-phone"/></svg></span>
+            <span class="ib hot" tabindex="0" data-k="stop" title="Stop"><svg><use href="#i-stop"/></svg></span>
+          </span>
+        </div>
+        <div class="row hot" tabindex="0" data-k="row-bg">
+          <span class="dot blocked"></span>
+          <span class="t"><span class="n">stray keystroke <span class="pill bg">BG</span></span><span class="p">~/…/ClientA/web/frontend · waiting since 11 Sep</span></span>
+          <span class="acts">
+            <span class="ib hot" tabindex="0" data-k="phone-closed" title="Send to phone"><svg><use href="#i-phone"/></svg></span>
+            <span class="ib hot" tabindex="0" data-k="stop" title="Stop"><svg><use href="#i-stop"/></svg></span>
+          </span>
+        </div>
+        <hr>
+        <div class="dd-sec"><span>RECENT · CLOSED</span></div>
+        <div class="row hot" tabindex="0" data-k="row-closed">
+          <span class="dot closed"></span>
+          <span class="t"><span class="n">chat-bridge</span><span class="p">~/…/Personal/chat-bridge</span></span>
+          <span class="acts"><span class="when">2h ago</span>
+            <span class="ib hot" tabindex="0" data-k="phone-closed" title="Open on phone"><svg><use href="#i-phone"/></svg></span>
+            <span class="ib hot" tabindex="0" data-k="resume-term" title="Resume in Terminal"><svg><use href="#i-term"/></svg></span>
+          </span>
+        </div>
+        <div class="row hot" tabindex="0" data-k="row-closed">
+          <span class="dot closed"></span>
+          <span class="t"><span class="n">data-pipeline</span><span class="p">~/…/Personal/data-pipeline</span></span>
+          <span class="acts"><span class="when">yesterday</span>
+            <span class="ib hot" tabindex="0" data-k="phone-closed" title="Open on phone"><svg><use href="#i-phone"/></svg></span>
+            <span class="ib hot" tabindex="0" data-k="resume-term" title="Resume in Terminal"><svg><use href="#i-term"/></svg></span>
+          </span>
+        </div>
+        <hr>
+        <div class="foot">
+          <span class="fb primary hot" tabindex="0" data-k="new">＋ New session…</span>
+          <span class="fb hot" tabindex="0" data-k="details">View details…</span>
+        </div>
+      </div>
+
+      <div class="note explain" aria-live="polite">
+        <h3 id="ex-title">Click part of the dropdown</h3>
+        <div id="ex-body"><p class="hint">Click any ring, row, button or link on the left. This panel explains it.</p></div>
+      </div>
+    </div>
+
+    <div class="note">
+      <h3>How to read a row</h3>
+      <dl style="display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px 14px;margin:0">
+        <dt><span class="dot busy" style="display:inline-block"></span></dt><dd style="margin:0">Running and working right now</dd>
+        <dt><span class="dot idle" style="display:inline-block"></span></dt><dd style="margin:0">Running, waiting for your next message</dd>
+        <dt><span class="dot blocked" style="display:inline-block"></span></dt><dd style="margin:0">Running, stuck on a question or permission. Needs you.</dd>
+        <dt><span class="dot closed" style="display:inline-block"></span></dt><dd style="margin:0">Closed. The history is still saved and you can resume it.</dd>
+        <dt><span class="ib on" style="display:inline-grid"><svg><use href="#i-phone"/></svg></span></dt><dd style="margin:0">Blue phone = this session is open on your phone right now (remote control on)</dd>
+        <dt><span class="pill bg">BG</span></dt><dd style="margin:0">Background session. It has no terminal window.</dd>
+      </dl>
+    </div>
+  </section>
+
+  <!-- 3. SHEETS -->
+  <section id="sheets">
+    <div class="sec-head">
+      <span class="eyebrow">Screen 3</span>
+      <h2>Small pop-ups</h2>
+      <p>These open from dropdown buttons. They only appear when the app needs a decision from you.</p>
+    </div>
+    <div class="sheets">
+      <div class="sheet">
+        <h4>New session</h4>
+        <div class="field"><label>FOLDER</label>
+          <div class="recent"><span class="chip on">Personal</span><span class="chip">notes-app</span><span class="chip">ClientA/web/frontend</span><span class="chip">cli-tool</span><span class="chip">Browse…</span></div>
+        </div>
+        <div class="field"><label>NAME (optional)</label><div class="input">personal-notes</div></div>
+        <div class="btns"><span class="btn">Cancel</span><span class="btn"><svg width="12" height="12" style="vertical-align:-1px"><use href="#i-term"/></svg> Open in Terminal</span><span class="btn blue"><svg width="12" height="12" style="vertical-align:-1px"><use href="#i-phone"/></svg> Start for phone</span></div>
+        <p class="cap">Folder chips are the folders you used most recently. "Start for phone" opens no window; the session shows up on your phone within a few seconds.</p>
+      </div>
+      <div class="sheet">
+        <h4>Move "notes-app" to your phone?</h4>
+        <p>This session is open in a Terminal tab. To put it on your phone, Session Bar closes it there and reopens it in the background with phone access on. Your conversation carries over.</p>
+        <div class="btns"><span class="btn">Cancel</span><span class="btn blue">Move to phone</span></div>
+        <p class="cap">Only shown for sessions running in a terminal. Closed and background sessions go straight to the phone.</p>
+      </div>
+      <div class="sheet">
+        <h4>Stop "stray keystroke"?</h4>
+        <p>It has been waiting for an answer since 11 Sep. Stopping removes it from your phone. The conversation stays in your history, and you can resume it later.</p>
+        <div class="btns"><span class="btn">Cancel</span><span class="btn danger">Stop session</span></div>
+        <p class="cap">Only asked when the session is working or waiting on you. An idle session stops straight away.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. DETAILS WINDOW -->
+  <section id="details">
+    <div class="sec-head">
+      <span class="eyebrow">Screen 4</span>
+      <h2>View details window</h2>
+      <p>A normal Mac window with three tabs. <b>Click the tabs</b> in the sidebar to switch.</p>
+    </div>
+    <div class="win">
+      <div class="titlebar"><span class="lights"><i></i><i></i><i></i></span><span class="ttl">Session Bar</span><span style="width:45px"></span></div>
+      <div class="wbody">
+        <div class="side" role="tablist" aria-label="Details tabs">
+          <button role="tab" aria-selected="true" data-tab="t-sessions" id="tab-s">Sessions</button>
+          <button role="tab" aria-selected="false" data-tab="t-usage" id="tab-u">Usage</button>
+          <button role="tab" aria-selected="false" data-tab="t-settings" id="tab-g">Settings</button>
+        </div>
+
+        <div class="pane" id="t-sessions" role="tabpanel">
+          <div class="toolbar">
+            <span class="search">Search name, folder or session ID…</span>
+            <span class="chip on">All 251</span><span class="chip">Running 3</span><span class="chip">On phone 1</span><span class="chip">Background 1</span><span class="chip">Closed</span>
+          </div>
+          <div class="tablewrap">
+            <table>
+              <thead><tr><th>☐</th><th>Status</th><th>Name</th><th>Folder</th><th>Session ID</th><th>Model</th><th>Last active</th><th>Size</th><th>Actions</th></tr></thead>
+              <tbody>
+                <tr><td>☐</td><td><span class="dot busy" style="display:inline-block"></span> Working</td><td>personal-a8 <span class="ib on" style="display:inline-grid;vertical-align:middle"><svg><use href="#i-phone"/></svg></span></td><td>Personal</td><td><span class="mono">a008a383</span> <svg width="12" height="12"><use href="#i-copy"/></svg></td><td>Opus 5.5</td><td>now</td><td>1.2 MB</td><td><span class="btn">Stop</span></td></tr>
+                <tr><td>☐</td><td><span class="dot idle" style="display:inline-block"></span> Idle</td><td>notes-app</td><td>Personal/notes-app</td><td><span class="mono">024c7ff4</span> <svg width="12" height="12"><use href="#i-copy"/></svg></td><td>Opus 5.5</td><td>12 min ago</td><td>8.4 MB</td><td><span class="btn">Send to phone</span> <span class="btn">Stop</span></td></tr>
+                <tr><td>☐</td><td><span class="dot blocked" style="display:inline-block"></span> Waiting</td><td>stray keystroke <span class="pill bg">BG</span></td><td>ClientA/web/frontend</td><td><span class="mono">eb49ebd6</span> <svg width="12" height="12"><use href="#i-copy"/></svg></td><td>Sonnet 5.5</td><td>11 Sep</td><td>3.1 MB</td><td><span class="btn">Open</span> <span class="btn">Stop</span></td></tr>
+                <tr class="picked"><td>☑</td><td><span class="dot closed" style="display:inline-block"></span> Closed</td><td>chat-bridge</td><td>Personal/chat-bridge</td><td><span class="mono">7c1e90b2</span> <svg width="12" height="12"><use href="#i-copy"/></svg></td><td>Opus 5.5</td><td>2h ago</td><td>22.0 MB</td><td><span class="btn">Resume</span> <span class="btn">Phone</span></td></tr>
+                <tr class="picked"><td>☑</td><td><span class="dot closed" style="display:inline-block"></span> Closed</td><td>landing-page setup</td><td>Personal/landing-page</td><td><span class="mono">3fa2d6c1</span> <svg width="12" height="12"><use href="#i-copy"/></svg></td><td>Opus 5.5</td><td>4 Sep</td><td>5.6 MB</td><td><span class="btn">Resume</span> <span class="btn">Phone</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="statusbar"><span>2 selected · 27.6 MB</span><span><span class="btn danger">Delete selected</span></span></div>
+          <p class="cap">IDs for closed rows are illustrative. Clicking a row opens a side panel with the first message, last message, tokens used and the full session ID.</p>
+        </div>
+
+        <div class="pane" id="t-usage" role="tabpanel" hidden>
+          <div class="big-rings">
+            <figure>
+              <svg width="96" height="96" viewBox="0 0 96 96"><circle cx="48" cy="48" r="40" fill="none" stroke="var(--ring-track)" stroke-width="9"/><circle cx="48" cy="48" r="40" fill="none" stroke="var(--ring-a)" stroke-width="9" stroke-dasharray="105.6 251.3" transform="rotate(-90 48 48)" stroke-linecap="round"/><text x="48" y="54" text-anchor="middle" font-size="18" font-weight="600" fill="var(--ink)" font-family="var(--f-mac)">42%</text></svg>
+              <figcaption><b>5-hour</b><small>resets 6:40 PM (in 2h 28m)</small></figcaption>
+            </figure>
+            <figure>
+              <svg width="96" height="96" viewBox="0 0 96 96"><circle cx="48" cy="48" r="40" fill="none" stroke="var(--ring-track)" stroke-width="9"/><circle cx="48" cy="48" r="40" fill="none" stroke="var(--ring-b)" stroke-width="9" stroke-dasharray="45.2 251.3" transform="rotate(-90 48 48)" stroke-linecap="round"/><text x="48" y="54" text-anchor="middle" font-size="18" font-weight="600" fill="var(--ink)" font-family="var(--f-mac)">18%</text></svg>
+              <figcaption><b>Weekly · all models</b><small>resets Thu 9:00 AM</small></figcaption>
+            </figure>
+            <figure>
+              <svg width="96" height="96" viewBox="0 0 96 96"><circle cx="48" cy="48" r="40" fill="none" stroke="var(--ring-track)" stroke-width="9"/><circle cx="48" cy="48" r="40" fill="none" stroke="var(--ring-a)" stroke-width="9" stroke-dasharray="62.8 251.3" transform="rotate(-90 48 48)" stroke-linecap="round" opacity=".6"/><text x="48" y="54" text-anchor="middle" font-size="18" font-weight="600" fill="var(--ink)" font-family="var(--f-mac)">25%</text></svg>
+              <figcaption><b>Weekly · Opus</b><small>shown only if your plan has it</small></figcaption>
+            </figure>
+          </div>
+          <h3 style="font-family:var(--f-mac);font-size:13px;margin-top:6px">Where your tokens went this week</h3>
+          <div class="bars">
+            <div class="barrow"><span>ClientA/website</span><span class="track"><span class="fill" style="width:88%;display:block"></span></span><span>4.1M</span></div>
+            <div class="barrow"><span>notes-app</span><span class="track"><span class="fill" style="width:61%;display:block"></span></span><span>2.8M</span></div>
+            <div class="barrow"><span>data-pipeline</span><span class="track"><span class="fill" style="width:34%;display:block"></span></span><span>1.6M</span></div>
+            <div class="barrow"><span>Personal</span><span class="track"><span class="fill" style="width:12%;display:block"></span></span><span>0.6M</span></div>
+          </div>
+          <p class="cap">Example numbers. Ring values come from Claude Code itself. The bars are added up from your saved session files.</p>
+        </div>
+
+        <div class="pane" id="t-settings" role="tabpanel" hidden>
+          <div class="setting"><span><b>Keep session history for</b><small>Claude Code deletes saved sessions older than this. Today: 30 days (the default).</small></span><span class="stepper"><span>−</span><span>180 days</span><span>+</span></span></div>
+          <div class="setting"><span><b>Menu bar shows</b><small>What appears next to the ring</small></span><span class="btn">5-hour % · session count ▾</span></div>
+          <div class="setting"><span><b>Open at login</b></span><span class="toggle"></span></div>
+          <div class="setting"><span><b>New sessions start with phone access on</b><small>Default for the New session pop-up</small></span><span class="toggle"></span></div>
+          <div class="setting" style="border-bottom:0"><span><b>Clean up now</b><small>Delete closed sessions older than a date you pick</small></span><span class="btn danger">Choose date…</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. HOW IT WORKS -->
+  <section id="how">
+    <div class="sec-head">
+      <span class="eyebrow">Under the hood</span>
+      <h2>Where the information comes from</h2>
+      <p>Session Bar has no server and no login of its own. It reads files Claude Code already writes on your Mac and runs the normal <code>claude</code> command for every action.</p>
+    </div>
+<pre class="mermaid">
+flowchart LR
+  subgraph CC["Claude Code (already on your Mac)"]
+    S1["Each running session"] -->|"writes"| F1["~/.claude/sessions/*.json<br/>(live list, phone on/off)"]
+    S1 -->|"status line refresh"| SL["statusline script<br/>+1 line added"]
+    SL -->|"writes"| F2["~/.claude/usage.json<br/>(5h %, weekly %, reset times)"]
+    S1 -->|"saves"| F3["~/.claude/projects/**.jsonl<br/>(history)"]
+  end
+  F1 -->|"watched, instant"| APP["Session Bar"]
+  F2 -->|"watched"| APP
+  F3 -->|"read on demand"| APP
+  APP -->|"claude --bg / stop / attach / --resume"| CLI["claude command"]
+  CLI --> S1
+</pre>
+  </section>
+
+  <!-- 6. FLOWS -->
+  <section id="flows">
+    <div class="sec-head">
+      <span class="eyebrow">Flows</span>
+      <h2>What happens, step by step</h2>
+      <p>Every button in the mockups above, as the sequence of things the app does.</p>
+    </div>
+    <div class="flows">
+      <div class="flow"><h3>Install (one command)</h3><p class="trigger">You paste one line into Terminal</p>
+        <ol><li><code>curl -fsSL https://raw.githubusercontent.com/&lt;you&gt;/session-bar/main/install.sh | bash</code></li>
+        <li>The script downloads the latest release from GitHub and copies it into /Applications.</li>
+        <li>It adds one line to your status line script so usage gets saved to <code>~/.claude/usage.json</code>. Your existing status line stays as it is.</li>
+        <li>It opens Session Bar and turns on "Open at login".</li></ol></div>
+
+      <div class="flow"><h3>Usage rings update</h3><p class="trigger">Automatic, whenever any session is active</p>
+        <ol><li>Claude Code refreshes the status line and passes along your 5-hour and weekly percentages.</li>
+        <li>The added line saves them to <code>usage.json</code>.</li>
+        <li>Session Bar sees the file change and redraws the rings and the menu bar number.</li>
+        <li>If no session has run for a while, the rings show "updated 3h ago" so you know the number is old.</li></ol></div>
+
+      <div class="flow"><h3>Session list stays live</h3><p class="trigger">Automatic</p>
+        <ol><li>You start <code>claude</code> anywhere, in any terminal or in the background.</li>
+        <li>Claude Code writes a file for it in <code>~/.claude/sessions/</code>.</li>
+        <li>Session Bar sees the new file straight away and puts the session at the top of "Running now".</li>
+        <li>When the session closes, its file disappears and the row moves to "Recent · closed".</li></ol></div>
+
+      <div class="flow"><h3>Phone button on a closed or background session</h3><p class="trigger">Click the grey phone icon</p>
+        <ol><li>Runs <code>claude --bg --resume &lt;id&gt; --remote-control</code> in that folder.</li>
+        <li>The session starts in the background. No window opens.</li>
+        <li>The phone icon turns blue. Open the Claude app on your phone and the session is listed.</li></ol></div>
+
+      <div class="flow"><h3>Phone button on a session open in Terminal</h3><p class="trigger">Click the grey phone icon</p>
+        <ol><li>Shows the "Move to your phone?" pop-up.</li>
+        <li>On confirm, the app closes the session in its Terminal tab cleanly, the same as pressing Ctrl+C twice.</li>
+        <li>It reopens the session in the background with phone access on, using the same command as above.</li>
+        <li>The row moves under the background sessions with a blue phone icon.</li></ol></div>
+
+      <div class="flow"><h3>Stop (also turns phone access off)</h3><p class="trigger">Click ■ on a running session</p>
+        <ol><li>Asks first only if the session is working or waiting on you.</li>
+        <li>Background session: runs <code>claude stop &lt;id&gt;</code>. Terminal session: sends it a clean close signal.</li>
+        <li>Claude Code shuts down and disconnects remote control, so the session leaves your phone list.</li>
+        <li>The row moves to "Recent · closed". The history is kept.</li></ol></div>
+
+      <div class="flow"><h3>New session</h3><p class="trigger">Click "＋ New session…"</p>
+        <ol><li>Pick a recent folder chip or browse to a folder, and add a name if you want.</li>
+        <li><b>Start for phone:</b> runs <code>claude --bg --remote-control -n &lt;name&gt;</code> in that folder. Nothing opens on the Mac.</li>
+        <li><b>Open in Terminal:</b> opens a new Terminal window running <code>cd &lt;folder&gt; &amp;&amp; claude -n &lt;name&gt;</code>.</li>
+        <li>The session appears at the top of the list within a second.</li></ol></div>
+
+      <div class="flow"><h3>Click a session row</h3><p class="trigger">Click the name of any row</p>
+        <ol><li>Running in Terminal: brings that Terminal tab to the front.</li>
+        <li>Background session: opens a Terminal window running <code>claude attach &lt;id&gt;</code>.</li>
+        <li>Closed session: opens Terminal with <code>claude --resume &lt;id&gt;</code> in its folder.</li></ol></div>
+
+      <div class="flow"><h3>Delete sessions</h3><p class="trigger">Details → select rows → Delete selected</p>
+        <ol><li>Only closed sessions can be selected. Running ones must be stopped first.</li>
+        <li>A confirmation shows how many sessions and how many MB will be deleted.</li>
+        <li>The session files go to the macOS Trash, so you can still restore them until you empty it.</li>
+        <li>Note: this frees space on your Mac. It does not remove old entries from claude.ai's list.</li></ol></div>
+
+      <div class="flow"><h3>Change how long history is kept</h3><p class="trigger">Settings → Keep history for</p>
+        <ol><li>Change the number of days, for example from 30 to 180.</li>
+        <li>The app writes <code>cleanupPeriodDays</code> into <code>~/.claude/settings.json</code> and leaves your other settings untouched.</li>
+        <li>From then on, Claude Code deletes sessions older than that on its own. You never need a "delete old sessions" button.</li></ol></div>
+
+      <div class="flow"><h3>Clean up now</h3><p class="trigger">Settings → Choose date…</p>
+        <ol><li>Pick a date. The default is 6 months ago.</li>
+        <li>The app shows how many closed sessions are older than that date and their total size.</li>
+        <li>On confirm, they go to the Trash, the same as Delete selected.</li></ol></div>
+    </div>
+  </section>
+
+  <!-- 7. VERIFY -->
+  <section id="verify">
+    <div class="sec-head">
+      <span class="eyebrow">Before building</span>
+      <h2>What still needs a quick test</h2>
+      <p>Everything else is confirmed on your Mac with Claude Code 2.1.288.</p>
+    </div>
+    <div class="verify-list">
+      <div class="note"><span class="tag verify">TEST</span><p>Does a session started with <code>claude --bg --remote-control</code> show up in the Claude phone app? The design for "Start for phone" and the phone button depends on it.</p></div>
+      <div class="note"><span class="tag verify">TEST</span><p>Does stopping a session (<code>claude stop</code> or a clean close) remove it from the phone list? This is your original problem, so it matters most.</p></div>
+      <div class="note"><span class="tag verify">TEST</span><p>Can the app bring a specific Terminal tab to the front? Terminal and iTerm allow it through AppleScript. Other terminals (Warp, Ghostty) might not. If one doesn't, clicking the row opens a new window instead.</p></div>
+      <div class="note"><span class="tag ok">CONFIRMED</span><p>Live session list with name, folder, ID, busy/idle state and phone on/off (<code>~/.claude/sessions/*.json</code>). Background sessions via <code>claude agents --json</code>. Usage percentages and reset times in the status line data. History cleanup via <code>cleanupPeriodDays</code>.</p></div>
+    </div>
+  </section>
+</div>
+
+<script>
+const EX = {
+  ring5:{t:"5-hour usage ring",see:"How much of your rolling 5-hour limit you have used, and when it resets.",click:"Opens View details on the Usage tab.",how:"Read from <code>~/.claude/usage.json</code>. Your status line script saves this file each time Claude Code refreshes the status line. It holds the same numbers as <code>/usage</code>."},
+  ringw:{t:"Weekly usage ring",see:"How much of your weekly limit you have used, and when it resets.",click:"Opens View details on the Usage tab, which also shows the Opus-only weekly limit if your plan has one.",how:"Same file as the 5-hour ring: <code>rate_limits.seven_day</code>."},
+  meta:{t:"Model and freshness line",see:"The model of your most recent session, and how old the usage numbers are.",click:"Nothing.",how:"Usage only changes while a session runs, so \"updated 3h ago\" just means you haven't used Claude since then."},
+  "row-run":{t:"A running session",see:"Name, folder, and state (working, idle, or waiting on you). Newest at the top. It appears the moment you start <code>claude</code> anywhere.",click:"Brings its Terminal tab to the front.",how:"The app watches <code>~/.claude/sessions/</code>. Each running session has a file there with its ID, folder, name and status."},
+  "row-bg":{t:"A background session",see:"A session with no terminal window, started with <code>--bg</code>, by Session Bar or by you. This one has been waiting for an answer since 11 Sep, which is why it's amber.",click:"Opens a Terminal window attached to it, so you can answer.",how:"<code>claude attach &lt;id&gt;</code>. The list comes from <code>claude agents --json</code>."},
+  "row-closed":{t:"A recently closed session",see:"Your last few closed sessions, so you can jump back in.",click:"Opens Terminal and resumes it in its own folder.",how:"<code>cd &lt;folder&gt; &amp;&amp; claude --resume &lt;id&gt;</code>"},
+  "phone-on":{t:"Phone icon: on (blue)",see:"This session is reachable from your phone and from claude.ai/code.",click:"Asks \"Stop this session?\". Stopping takes it off your phone list.",how:"Phone access shows as on when the session file has a <code>bridgeSessionId</code>."},
+  "phone-term":{t:"Phone icon: send a Terminal session to your phone",see:"Grey phone on a session that is open in a Terminal tab.",click:"Shows the \"Move to your phone?\" pop-up. On confirm, the session closes in Terminal and reopens in the background with phone access on.",how:"Claude Code can't switch on remote control inside an already-open terminal from outside, so the app moves the session instead. The conversation continues under the same ID."},
+  "phone-closed":{t:"Phone icon: open on your phone",see:"Grey phone on a closed or background session.",click:"The session starts in the background with phone access on. No window opens. The icon turns blue and it appears in the Claude app.",how:"<code>claude --bg --resume &lt;id&gt; --remote-control</code> <span class='tag verify'>TEST</span>"},
+  stop:{t:"Stop button",see:"Ends a running session.",click:"Stops it straight away if idle, or asks first if it's working or waiting on you. It also disappears from your phone list.",how:"Background: <code>claude stop &lt;id&gt;</code>. Terminal: a clean close signal to its process. <span class='tag verify'>TEST</span> that the phone list clears."},
+  "resume-term":{t:"Resume in Terminal",see:"Reopens a closed session on your Mac.",click:"Opens a new Terminal window in the right folder with the conversation loaded.",how:"<code>claude --resume &lt;id&gt;</code>"},
+  new:{t:"New session",see:"Starts a new Claude Code session without you opening a terminal first.",click:"Opens the New session pop-up. Pick a folder, add an optional name, then choose <b>Start for phone</b> (no window) or <b>Open in Terminal</b>.",how:"Phone: <code>claude --bg --remote-control -n &lt;name&gt;</code>. Terminal: AppleScript opens Terminal and runs <code>claude -n &lt;name&gt;</code>."},
+  details:{t:"View details",see:"Opens the full window: all saved sessions, the Usage tab and Settings.",click:"Opens the window shown in Screen 4.",how:"Reads the saved session files in <code>~/.claude/projects/</code>."}
+};
+const title=document.getElementById('ex-title'), body=document.getElementById('ex-body');
+function show(k,el){
+  const e=EX[k]; if(!e) return;
+  document.querySelectorAll('.hot.sel').forEach(n=>n.classList.remove('sel'));
+  el.classList.add('sel');
+  title.textContent=e.t;
+  body.innerHTML=`<dl><dt>You see</dt><dd>${e.see}</dd><dt>On click</dt><dd>${e.click}</dd><dt>Behind it</dt><dd>${e.how}</dd></dl>`;
+}
+document.querySelectorAll('.dd .hot').forEach(el=>{
+  const go=ev=>{ev.stopPropagation();show(el.dataset.k,el)};
+  el.addEventListener('click',go);
+  el.addEventListener('keydown',ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();go(ev)}});
+});
+show('ring5',document.querySelector('[data-k="ring5"]'));
+
+document.querySelectorAll('.side [role=tab]').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.side [role=tab]').forEach(x=>x.setAttribute('aria-selected',x===b));
+  document.querySelectorAll('.pane').forEach(p=>p.hidden=p.id!==b.dataset.tab);
+}));
+</script>
