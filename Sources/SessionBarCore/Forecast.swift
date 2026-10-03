@@ -48,29 +48,17 @@ public struct UsageLog: Sendable {
             .filter { $0.at >= now.addingTimeInterval(-Self.keep) }
     }
 
-    /// Appends readings that differ from the latest one for the same window; rewrites the file
-    /// without old lines when it has grown.
     @discardableResult
     public func record(_ snapshot: UsageSnapshot, existing: [UsageSample], now: Date = Date()) -> [UsageSample] {
-        var all = existing
+        let added = snapshot.windows
+            .map { UsageSample(at: snapshot.updatedAt, key: $0.key, percent: $0.usedPercent, resetsAt: $0.resetsAt) }
+            .filter { s in existing.last(where: { $0.key == s.key }).map { $0.percent != s.percent || $0.resetsAt != s.resetsAt } ?? true }
+        guard !added.isEmpty else { return existing }
+        let fresh = (existing + added).filter { $0.at >= now.addingTimeInterval(-Self.keep) }
         let enc = JSONEncoder()
-        var added: [UsageSample] = []
-        for w in snapshot.windows {
-            let s = UsageSample(at: snapshot.updatedAt, key: w.key, percent: w.usedPercent, resetsAt: w.resetsAt)
-            if let prev = all.last(where: { $0.key == w.key }), prev.percent == s.percent, prev.resetsAt == s.resetsAt { continue }
-            added.append(s)
-        }
-        guard !added.isEmpty else { return all }
-        all += added
-        let fresh = all.filter { $0.at >= now.addingTimeInterval(-Self.keep) }
+        let text = fresh.compactMap { try? enc.encode($0) }.map { String(decoding: $0, as: UTF8.self) + "\n" }.joined()
         try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        let lines = (fresh.count < all.count ? fresh : added).compactMap { try? enc.encode($0) }
-        let blob = Data(lines.map { String(decoding: $0, as: UTF8.self) }.joined(separator: "\n").utf8 + [UInt8(ascii: "\n")])
-        if fresh.count < all.count || !FileManager.default.fileExists(atPath: url.path) {
-            try? blob.write(to: url, options: .atomic)
-        } else if let fh = try? FileHandle(forWritingTo: url) {
-            fh.seekToEndOfFile(); fh.write(blob); try? fh.close()
-        }
+        try? Data(text.utf8).write(to: url, options: .atomic)
         return fresh
     }
 }

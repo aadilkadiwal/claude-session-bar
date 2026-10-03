@@ -220,16 +220,16 @@ struct SessionsTab: View {
         Button("Rename…") { renaming = r }
             .disabled(r.live.map { $0.kind == .background || model.typingBlockers[$0.sessionId] != nil } ?? false)
         if let s = r.live {
-            Button(s.kind == .interactive ? "Show its window" : "Open in \(model.terminalApp.title)") { model.open(s) }
+            Button(s.kind == .interactive ? "Show its window" : "Open in iTerm") { model.open(s) }
             if s.isOnPhone, s.kind == .interactive { Button("Disconnect phone (keep running)") { model.phoneOff(s) } }
-            if !s.isOnPhone { Button(s.kind == .interactive ? "Also open on phone" : "Open in \(model.terminalApp.title) + phone") { model.phoneOn(s) } }
+            if !s.isOnPhone { Button(s.kind == .interactive ? "Also open on phone" : "Open in iTerm + phone") { model.phoneOn(s) } }
             if let url = s.phoneURL {
                 Button("Copy phone link") { copy(url.absoluteString) }
                 Button("Open on claude.ai") { NSWorkspace.shared.open(url) }
             }
             Button(s.isLeftover ? "Clear leftover entry" : "Stop") { model.stop(s) }
         } else if let h = r.saved {
-            Button("Resume in \(model.terminalApp.title)") { model.resumeInTerminal(h) }
+            Button("Resume in iTerm") { model.resumeInTerminal(h) }
             Button("Delete…", role: .destructive) { pendingDelete = [h] }
             Button("Show file in Finder") { NSWorkspace.shared.activateFileViewerSelecting([h.fileURL]) }
         }
@@ -400,11 +400,6 @@ struct SettingsTab: View {
                 Picker("Menu bar shows", selection: $barStyle) {
                     ForEach(BarStyle.allCases) { Text($0.title).tag($0.rawValue) }
                 }
-                Picker("Open sessions in", selection: $model.terminalApp) {
-                    ForEach(TerminalApp.allCases) { app in
-                        Text(app.isInstalled ? app.title : "\(app.title) (not installed)").tag(app).disabled(!app.isInstalled)
-                    }
-                }
                 Toggle("Open at login", isOn: Binding(get: { model.opensAtLogin }, set: { model.setOpensAtLogin($0) }))
             } header: { Text("App") }
 
@@ -438,13 +433,11 @@ enum Retention {
 }
 
 enum BarStyle: String, CaseIterable, Identifiable {
-    case closest, percentAndCount, bothLimits, ringOnly
+    case closest, ringOnly
     var id: String { rawValue }
     var title: String {
         switch self {
         case .closest: return "Closest limit · running sessions"
-        case .percentAndCount: return "5-hour % · running sessions"
-        case .bothLimits: return "5-hour % / weekly %"
         case .ringOnly: return "Ring only"
         }
     }

@@ -22,9 +22,6 @@ final class AppModel: ObservableObject {
     @Published private(set) var typingBlockers: [String: String] = [:]
     @Published var banner: Banner?
     @Published private(set) var retentionDays: Int
-    @Published var terminalApp = TerminalApp.preferred {
-        didSet { UserDefaults.standard.set(terminalApp.rawValue, forKey: TerminalApp.defaultsKey) }
-    }
     var menuOpen = false { didSet { if menuOpen { Task { await refresh(history: true, agents: true) } } } }
     var detailsOpen = false
 
@@ -145,7 +142,7 @@ final class AppModel: ObservableObject {
                 if let success { banner = Banner(text: success) }
             } catch let ClaudeCLI.Failure.untrusted(folder) {
                 banner = Banner(text: ClaudeCLI.Failure.untrusted(folder: folder).errorDescription ?? "", isError: true,
-                                actionTitle: "Open in \(self.terminalApp.title)") { [weak self] in
+                                actionTitle: "Open in iTerm") { [weak self] in
                     self?.openTerminal(ClaudeCLI.ShellLine.new(cwd: folder, name: ""))
                 }
             } catch {
@@ -166,8 +163,7 @@ final class AppModel: ObservableObject {
         if s.kind == .interactive {
             perform(s.sessionId, success: "\(name) is on your phone and still open on your Mac.") { try await $0.setPhone(s, on: true) }
         } else {
-            let app = terminalApp
-            perform(s.sessionId, success: "\(name) is open in \(app.title) and on your phone.") { try await $0.openWithPhone(s, app: app) }
+            perform(s.sessionId, success: "\(name) is open in iTerm and on your phone.") { try await $0.openWithPhone(s) }
         }
     }
 
@@ -209,7 +205,7 @@ final class AppModel: ObservableObject {
     }
 
     func openTerminal(_ line: String) {
-        do { try cli?.openInTerminal(line, app: terminalApp) } catch { banner = Banner(text: error.localizedDescription, isError: true) }
+        do { try cli?.openInITerm(line) } catch { banner = Banner(text: error.localizedDescription, isError: true) }
     }
 
     /// Only closed sessions; running ones are skipped so a live transcript is never pulled away.

@@ -1,22 +1,21 @@
 import AppKit
 import Foundation
 
-/// The iTerm or Terminal tab a running session lives in, found by its tty. Lets Session Bar type a
-/// command into that exact session, the same as if you typed it, and read what's on screen.
+/// The iTerm tab a running session lives in, found by its tty. Lets Session Bar type a command into
+/// that exact session, the same as if you typed it, and read what's on screen.
 public struct SessionWindow: Sendable {
-    public enum Host: String, Sendable { case iterm, terminal }
-    public let host: Host
+    public static let itermBundleId = "com.googlecode.iterm2"
     public let tty: String  // e.g. /dev/ttys012
 
     public enum Failure: LocalizedError, Equatable {
-        case unsupportedHost, notFound, notAllowed(String), script(String)
+        case unsupportedHost, notFound, notAllowed, script(String)
         public var errorDescription: String? {
             switch self {
             case .unsupportedHost:
-                return "This session runs in an app Session Bar can't type into. Type /remote-control in it yourself."
+                return "This session isn't running in iTerm, so Session Bar can't type into it. Type the command in it yourself."
             case .notFound: return "Couldn't find this session's window."
-            case .notAllowed(let app):
-                return "Session Bar isn't allowed to control \(app). Turn it on in System Settings → Privacy & Security → Automation."
+            case .notAllowed:
+                return "Session Bar isn't allowed to control iTerm. Turn it on in System Settings → Privacy & Security → Automation."
             case .script(let msg): return msg
             }
         }
@@ -25,11 +24,8 @@ public struct SessionWindow: Sendable {
     @MainActor
     public static func find(pid: Int32) throws -> SessionWindow {
         guard let tty = tty(of: pid) else { throw Failure.notFound }
-        switch ClaudeCLI.owningApp(pid: pid)?.bundleIdentifier {
-        case TerminalApp.iterm.bundleId: return SessionWindow(host: .iterm, tty: tty)
-        case TerminalApp.terminal.bundleId: return SessionWindow(host: .terminal, tty: tty)
-        default: throw Failure.unsupportedHost
-        }
+        guard ClaudeCLI.owningApp(pid: pid)?.bundleIdentifier == itermBundleId else { throw Failure.unsupportedHost }
+        return SessionWindow(tty: tty)
     }
 
     static func tty(of pid: Int32) -> String? {
@@ -43,24 +39,16 @@ public struct SessionWindow: Sendable {
     }
 
     @MainActor public func type(_ text: String, enter: Bool = true) throws {
-        let t = esc(text)
-        switch host {
-        case .iterm: try run(match: "tell s to write text \"\(t)\" newline \(enter ? "YES" : "NO")")
-        case .terminal:
-            // Terminal's `do script` always presses Return.
-            guard enter else { throw Failure.unsupportedHost }
-            try run(match: "do script \"\(t)\" in t")
-        }
+        try run(match: "tell s to write text \"\(esc(text))\" newline \(enter ? "YES" : "NO")")
     }
 
     @MainActor public func erase(_ count: Int) throws {
-        guard host == .iterm, count > 0 else { return }
+        guard count > 0 else { return }
         try run(match: "tell s to write text (\(Array(repeating: "(ASCII character 127)", count: count).joined(separator: " & "))) newline NO")
     }
 
     /// Up arrow `count` times, then Return: picks a menu item above the default one.
     @MainActor public func chooseAbove(_ count: Int) throws {
-        guard host == .iterm else { throw Failure.unsupportedHost }
         let ups = Array(repeating: "esc & \"[A\"", count: count).joined(separator: " & ")
         try run(match: """
         set esc to ASCII character 27
@@ -70,19 +58,9 @@ public struct SessionWindow: Sendable {
         """)
     }
 
-    @MainActor public func screen() throws -> String {
-        try run(match: host == .iterm ? "return contents of s" : "return contents of t")
-    }
+    @MainActor public func screen() throws -> String { try run(match: "return contents of s") }
 
-    @MainActor public func focus() throws {
-        switch host {
-        case .iterm: try run(match: "activate\ntell w to select\ntell t to select\ntell s to select")
-        case .terminal: try run(match: "activate\nset selected of t to true\nset index of w to 1")
-        }
-    }
-
-    /// Grey suggestion Claude Code shows in an empty prompt, e.g. `Try "fix lint errors"`.
-    static func isPlaceholder(_ s: String) -> Bool { s.hasPrefix("Try \"") && s.hasSuffix("\"") }
+    @MainActor public func focus() throws { try run(match: "activate\ntell w to select\ntell t to select\ntell s to select") }
 
     /// Text on the prompt line (`❯ text`). nil if no prompt is visible. May be a grey suggestion.
     public static func draft(in screen: String) -> String? {
@@ -92,43 +70,25 @@ public struct SessionWindow: Sendable {
 
     @discardableResult
     @MainActor private func run(match body: String) throws -> String {
-        let source: String
-        switch host {
-        case .iterm:
-            source = """
-            tell application "iTerm"
-                repeat with w in windows
-                    repeat with t in tabs of w
-                        repeat with s in sessions of t
-                            if tty of s is "\(esc(tty))" then
-                                \(body)
-                                return "ok"
-                            end if
-                        end repeat
-                    end repeat
-                end repeat
-            end tell
-            return "__notfound__"
-            """
-        case .terminal:
-            source = """
-            tell application "Terminal"
-                repeat with w in windows
-                    repeat with t in tabs of w
-                        if tty of t is "\(esc(tty))" then
+        let source = """
+        tell application "iTerm"
+            repeat with w in windows
+                repeat with t in tabs of w
+                    repeat with s in sessions of t
+                        if tty of s is "\(esc(tty))" then
                             \(body)
                             return "ok"
                         end if
                     end repeat
                 end repeat
-            end tell
-            return "__notfound__"
-            """
-        }
+            end repeat
+        end tell
+        return "__notfound__"
+        """
         var error: NSDictionary?
         let result = NSAppleScript(source: source)?.executeAndReturnError(&error)
         if let error {
-            if (error[NSAppleScript.errorNumber] as? Int) == -1743 { throw Failure.notAllowed(host == .iterm ? "iTerm" : "Terminal") }
+            if (error[NSAppleScript.errorNumber] as? Int) == -1743 { throw Failure.notAllowed }
             throw Failure.script(error[NSAppleScript.errorMessage] as? String ?? "AppleScript failed")
         }
         let out = result?.stringValue ?? ""

@@ -7,7 +7,7 @@ A macOS menu bar app for [Claude Code](https://claude.com/claude-code):
 - **Notifications**: a session needs your answer, a long task finished, a limit passed 80% / 95%. Each can be switched off.
 - **Phone in one click**: make a running session reachable from the Claude phone app while it keeps running on your Mac, or disconnect the phone again. No restart.
 - **Rename** running sessions (types `/rename`) and closed ones.
-- **New session without a terminal**: pick a folder, then start it for your phone or open it in iTerm (or Terminal).
+- **New session without a terminal**: pick a folder, then start it for your phone or open it in iTerm.
 - **History**: search, preview (last reply, prompts, duration, tokens), resume in an iTerm tab, delete one or many, one-click cleanup of empty sessions, and keep history for 1 week, 2 weeks or 30 days.
 
 Design walkthrough with clickable mockups and every flow: [`docs/design.html`](docs/design.html).
@@ -20,7 +20,7 @@ curl -fsSL https://raw.githubusercontent.com/aadilkadiwal/claude-session-bar/mai
 
 Or from a checkout: `./install.sh`. Run it again any time to update.
 
-Requirements: macOS 14+, Xcode Command Line Tools (`xcode-select --install`), Claude Code.
+Requirements: macOS 14+, Xcode Command Line Tools (`xcode-select --install`), Claude Code, iTerm2.
 
 The installer:
 1. Builds the app from source. Because it's built locally, there's no unsigned download for Gatekeeper to block.
@@ -45,11 +45,11 @@ Session Bar has no server and no login. It reads what Claude Code already writes
 | Running sessions, busy/idle, phone on/off | `~/.claude/sessions/<pid>.json` (watched for changes) + `claude agents --json` |
 | Usage rings | `rate_limits` from the status line JSON, saved by the tap to `~/.claude/session-bar/status.json` |
 | History, names, models, sizes | Head and tail of `~/.claude/projects/*/*.jsonl` (cached) |
-| 📱 on a running session (iTerm/Terminal) | Types `/remote-control` into that exact tab, found by its tty, the same as typing it yourself. It keeps running on the Mac **and** is on your phone. Clicking again chooses *Disconnect* from that menu, so it leaves the phone but keeps running. Only works when the session is idle. If you've typed something in its prompt, nothing is sent and your text is left as it was. |
-| 📱 on a background session | It has no window, so it reopens in iTerm (or Terminal) with `claude --resume <id> --remote-control`: on your Mac and your phone. |
+| 📱 on a running session (iTerm) | Types `/remote-control` into that exact tab, found by its tty, the same as typing it yourself. It keeps running on the Mac **and** is on your phone. Clicking again chooses *Disconnect* from that menu, so it leaves the phone but keeps running. Only works when the session is idle. If you've typed something in its prompt, nothing is sent and your text is left as it was. |
+| 📱 on a background session | It has no window, so it reopens in iTerm with `claude --resume <id> --remote-control`: on your Mac and your phone. |
 | Stop | `claude stop <id>` (background) or SIGTERM (terminal). Also removes it from the phone. |
 | New for phone | `claude --bg --remote-control -n <name>` in the chosen folder |
-| Open / resume a session | **iTerm** (default when installed): new window via iTerm's AppleScript API; macOS asks once to allow it. **Terminal**: a self-deleting `.command` file, so no permission is needed. Choose in Settings → Open sessions in. |
+| Open / resume a session | A new tab in your current iTerm window (a new window if none is open), via iTerm's AppleScript API. macOS asks once to allow it. |
 | Keep history for 7 / 14 / 30 days | `cleanupPeriodDays` in `~/.claude/settings.json` (Claude Code's own cleanup) |
 | Pace forecast | Usage readings logged to `~/.claude/session-bar/usage-log.jsonl` (8 days kept). Rate over the last hour (5-hour limit) or day (weekly). |
 | Waiting / finished alerts | `waitingFor` and `status` in each session's pid file, read every 3 s (no process started) |
@@ -59,7 +59,7 @@ Session Bar has no server and no login. It reads what Claude Code already writes
 
 Notes:
 - Usage only updates while a Claude Code session is active, because that's when Claude Code sends it. The dropdown shows how old the numbers are.
-- Background sessions only start in folders you've trusted. If a folder isn't trusted yet, the app offers to open it in Terminal so you can accept the prompt.
+- Background sessions only start in folders you've trusted. If a folder isn't trusted yet, the app offers to open it in iTerm so you can accept the prompt.
 - Deleting history frees space on your Mac. Sessions listed on claude.ai or in the phone app are kept on Anthropic's servers and aren't affected.
 
 ## Develop

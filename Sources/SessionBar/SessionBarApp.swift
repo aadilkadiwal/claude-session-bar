@@ -34,8 +34,6 @@ struct BarLabel: View {
             Image(nsImage: MenuBarRing.image(percent: weeklyCloser ? week : five, weekly: weeklyCloser, alert: model.needsYou))
             switch style {
             case .closest: Text(weeklyCloser ? "W \(pct(week)) · \(model.live.count)" : "\(pct(five)) · \(model.live.count)")
-            case .percentAndCount: Text("\(pct(five)) · \(model.live.count)")
-            case .bothLimits: Text("\(pct(five)) / \(pct(week))")
             case .ringOnly: EmptyView()
             }
         }
