@@ -1,0 +1,5 @@
+[
+  {"id":"eb000002","cwd":"/Users/me/Work/frontend","kind":"background","startedAt":1789111346234,"sessionId":"eb000002-0000-4000-8000-000000000002","name":"unclear input handling","state":"blocked"},
+  {"pid":30601,"cwd":"/Users/me/Personal","kind":"interactive","startedAt":1791035293186,"sessionId":"a0000001-0000-4000-8000-000000000001","name":"personal-a8","status":"busy"},
+  {"pid":46801,"id":"12000003","cwd":"/Users/me/Personal","kind":"background","startedAt":1791046286177,"sessionId":"12000003-0000-4000-8000-000000000003","name":"12000003","status":"idle","state":"blocked"}
+]
