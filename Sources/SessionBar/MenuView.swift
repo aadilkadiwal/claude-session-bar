@@ -76,9 +76,9 @@ struct MenuView: View {
         let closed = searching ? Array(model.closed.filter { matches($0.name, $0.cwd, $0.sessionId, $0.lastPrompt ?? "") }.prefix(15))
                                : Array(model.closed.prefix(5))
         return VStack(alignment: .leading, spacing: 4) {
-            TextField("Search sessions", text: $search)
+            TextField("Search name, folder or session ID", text: $search)
                 .textFieldStyle(.roundedBorder)
-                .controlSize(.small)
+                .controlSize(.regular)
                 .padding(.horizontal, 6)
             ScrollView {
                 VStack(alignment: .leading, spacing: 2) {
@@ -254,7 +254,7 @@ struct MenuView: View {
             Button { showingNew.toggle() } label: { Label(showingNew ? "Back" : "New session…", systemImage: showingNew ? "chevron.left" : "plus") }
             Spacer()
             Button("View details…") { showDetails(tab: .sessions) }
-            IconButton(symbol: "arrow.clockwise", help: "Refresh now") { Task { await model.refresh(history: true) } }
+            IconButton(symbol: "arrow.clockwise", help: "Refresh now", dimmed: model.refreshing) { Task { await model.refreshNow() } }
             IconButton(symbol: "power", help: "Quit Session Bar") { NSApp.terminate(nil) }
         }
         .buttonStyle(.borderless)

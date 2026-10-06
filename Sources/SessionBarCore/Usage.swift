@@ -38,12 +38,17 @@ public struct UsageSnapshot: Equatable, Sendable {
     public static func parse(_ data: Data, updatedAt: Date) -> UsageSnapshot? {
         guard let o = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let rl = o["rate_limits"] as? [String: Any] else { return nil }
-        let windows: [LimitWindow] = rl.compactMap { key, value in
+        var windows: [LimitWindow] = rl.compactMap { key, value in
             guard let w = value as? [String: Any], let pct = (w["used_percentage"] as? NSNumber)?.doubleValue else { return nil }
             let reset = (w["resets_at"] as? NSNumber).map { Date(timeIntervalSince1970: $0.doubleValue) }
             return LimitWindow(key: key, usedPercent: min(max(pct, 0), 100), resetsAt: reset)
-        }.sorted { (order.firstIndex(of: $0.key) ?? 99, $0.key) < (order.firstIndex(of: $1.key) ?? 99, $1.key) }
+        }
         guard !windows.isEmpty else { return nil }
+        // Claude Code omits a window that isn't running (e.g. 5-hour after a reset): show it at 0%.
+        for key in ["five_hour", "seven_day"] where !windows.contains(where: { $0.key == key }) {
+            windows.append(LimitWindow(key: key, usedPercent: 0, resetsAt: nil))
+        }
+        windows.sort { (order.firstIndex(of: $0.key) ?? 99, $0.key) < (order.firstIndex(of: $1.key) ?? 99, $1.key) }
         let model = (o["model"] as? [String: Any])?["display_name"] as? String
         return UsageSnapshot(windows: windows, model: model, updatedAt: updatedAt)
     }
