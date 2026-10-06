@@ -22,6 +22,7 @@ final class AppModel: ObservableObject {
     @Published private(set) var typingBlockers: [String: String] = [:]
     @Published var banner: Banner?
     @Published private(set) var retentionDays: Int
+    @Published private(set) var refreshing = false
     var menuOpen = false { didSet { if menuOpen { Task { await refresh(history: true, agents: true) } } } }
     var detailsOpen = false
 
@@ -104,6 +105,12 @@ final class AppModel: ObservableObject {
             }
         }
         if forceHistory || Date().timeIntervalSince(lastHistoryScan) > 60 { await refreshHistory() }
+    }
+
+    func refreshNow() async {
+        refreshing = true
+        defer { refreshing = false }
+        await refresh(history: true, agents: true)
     }
 
     func refreshHistory() async {

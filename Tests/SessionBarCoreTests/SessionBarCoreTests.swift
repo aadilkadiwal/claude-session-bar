@@ -239,6 +239,13 @@ final class SessionBarCoreTests: XCTestCase {
         XCTAssertEqual(opus.percent(), 0, "reset time has passed")
     }
 
+    func testUsageFillsInactiveMainWindow() throws {
+        let u = try XCTUnwrap(UsageSnapshot.parse(Data(#"{"rate_limits":{"seven_day":{"used_percentage":12}}}"#.utf8), updatedAt: Date()))
+        XCTAssertEqual(u.windows.map(\.key), ["five_hour", "seven_day"])
+        XCTAssertEqual(u.fiveHour?.usedPercent, 0)
+        XCTAssertNil(u.fiveHour?.resetsAt)
+    }
+
     func testUsageWithoutLimitsIsNil() {
         XCTAssertNil(UsageSnapshot.parse(Data(#"{"model":{},"rate_limits":null}"#.utf8), updatedAt: Date()))
         XCTAssertNil(UsageSnapshot.parse(Data(#"{"rate_limits":{}}"#.utf8), updatedAt: Date()))
