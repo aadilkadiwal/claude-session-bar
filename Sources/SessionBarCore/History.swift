@@ -108,11 +108,11 @@ public final class HistoryScanner: @unchecked Sendable {
         try fh.write(contentsOf: prefix + line + Data([UInt8(ascii: "\n")]))
     }
 
-    public static func trash(_ s: HistorySession) throws {
-        let fm = FileManager.default
-        try fm.trashItem(at: s.fileURL, resultingItemURL: nil)
-        let side = s.fileURL.deletingPathExtension()
-        if fm.fileExists(atPath: side.path) { try fm.trashItem(at: side, resultingItemURL: nil) }
+    /// Transcript first: if that fails nothing else is touched.
+    public static func trash(_ s: HistorySession, paths: ClaudePaths) throws {
+        let all = Leftovers.allPaths(s, paths)
+        try FileManager.default.trashItem(at: s.fileURL, resultingItemURL: nil)
+        Leftovers.trash(all.filter { $0 != s.fileURL })
     }
 }
 

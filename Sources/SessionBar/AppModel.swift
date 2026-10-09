@@ -23,6 +23,7 @@ final class AppModel: ObservableObject {
     @Published var banner: Banner?
     @Published private(set) var retentionDays: Int
     @Published private(set) var refreshing = false
+    @Published private(set) var storage: StorageSummary?
     var menuOpen = false { didSet { if menuOpen { Task { await refresh(history: true, agents: true) } } } }
     var detailsOpen = false
 
@@ -36,6 +37,7 @@ final class AppModel: ObservableObject {
     private var lastHistoryScan = Date.distantPast
     private var lastAgents: Data?
     private var lastAgentsFetch = Date.distantPast
+    private var lastAutoClean = Date.distantPast
 
     init() {
         let paths = self.paths
@@ -118,6 +120,10 @@ final class AppModel: ObservableObject {
         let scanner = self.scanner
         let h = await Task.detached { scanner.scan() }.value
         if h != history { history = h }
+        if UserDefaults.standard.bool(forKey: "autoCleanLeftovers"), Date().timeIntervalSince(lastAutoClean) > 86400 {
+            lastAutoClean = Date()
+            await cleanLeftovers(quiet: true)
+        }
     }
 
     private func watch(_ dir: URL) {
@@ -216,16 +222,46 @@ final class AppModel: ObservableObject {
     }
 
     /// Only closed sessions; running ones are skipped so a live transcript is never pulled away.
-    func delete(_ sessions: [HistorySession]) {
+    func delete(_ sessions: [HistorySession], files: [URL] = []) {
         let ids = liveIds
         var failed = 0, done = 0
         for s in sessions where !ids.contains(s.sessionId) {
-            do { try HistoryScanner.trash(s); done += 1 } catch { failed += 1 }
+            do { try HistoryScanner.trash(s, paths: paths); done += 1 } catch { failed += 1 }
         }
-        banner = failed == 0
-            ? Banner(text: "Moved \(done) session\(done == 1 ? "" : "s") to the Trash.")
-            : Banner(text: "Moved \(done) to the Trash; \(failed) couldn't be moved.", isError: true)
-        Task { await refreshHistory() }
+        let fileFailed = Leftovers.trash(files)
+        let filesNote = files.isEmpty ? "" : " and \(files.count - fileFailed) file\(files.count - fileFailed == 1 ? "" : "s")"
+        banner = failed + fileFailed == 0
+            ? Banner(text: "Moved \(done) session\(done == 1 ? "" : "s")\(filesNote) to the Trash.")
+            : Banner(text: "Moved \(done) session\(done == 1 ? "" : "s")\(filesNote) to the Trash; \(failed + fileFailed) couldn't be moved.", isError: true)
+        Task { await refreshHistory(); if storage != nil { await refreshStorage() } }
+    }
+
+    func deletePreview(_ sessions: [HistorySession]) async -> (bytes: Int64, files: [CreatedFile]) {
+        let paths = self.paths
+        return await Task.detached {
+            let bytes = sessions.reduce(0) { $0 + Leftovers.size(Leftovers.allPaths($1, paths)) }
+            let files = sessions.count == 1 ? Leftovers.createdFiles(sessions[0], paths) : []
+            return (bytes, files)
+        }.value
+    }
+
+    func refreshStorage() async {
+        let paths = self.paths, keep = liveIds
+        storage = await Task.detached { Leftovers.summary(paths, keep: keep) }.value
+    }
+
+    func cleanLeftovers(quiet: Bool = false) async {
+        let paths = self.paths, keep = liveIds
+        let (orphans, bytes) = await Task.detached {
+            let o = Leftovers.orphans(paths, keep: keep)
+            return (o, Leftovers.size(o))
+        }.value
+        let failed = Leftovers.trash(orphans)
+        if !quiet || failed > 0 {
+            banner = failed == 0 ? Banner(text: "Moved \(orphans.count) leftover\(orphans.count == 1 ? "" : "s") (\(Fmt.bytes(bytes))) to the Trash.")
+                : Banner(text: "\(failed) leftover\(failed == 1 ? "" : "s") couldn't be moved to the Trash.", isError: true)
+        }
+        if storage != nil { await refreshStorage() }
     }
 
     func setRetention(_ days: Int) {

@@ -200,16 +200,84 @@ final class SessionBarCoreTests: XCTestCase {
         XCTAssertEqual(log.load(now: now).map(\.percent), [20])
     }
 
-    func testTrashRemovesTranscriptAndSideFolder() throws {
-        let paths = try tempClaudeDir()
-        let file = paths.claudeDir.appendingPathComponent("cccccccc.jsonl")
-        let side = paths.claudeDir.appendingPathComponent("cccccccc")
-        try Data("{}".utf8).write(to: file)
-        try FileManager.default.createDirectory(at: side, withIntermediateDirectories: true)
-        try HistoryScanner.trash(HistorySession(sessionId: "cccccccc", fileURL: file, cwd: "/", name: "x",
-                                                lastPrompt: nil, model: nil, lastActive: Date(), bytes: 2))
-        XCTAssertFalse(FileManager.default.fileExists(atPath: file.path))
-        XCTAssertFalse(FileManager.default.fileExists(atPath: side.path))
+    func tempPaths() throws -> ClaudePaths {
+        let root = try tempClaudeDir().claudeDir
+        return ClaudePaths(claudeDir: root.appendingPathComponent(".claude"), tmpDir: root.appendingPathComponent("tmp"))
+    }
+
+    func touch(_ url: URL, _ text: String = "x", ago: TimeInterval = 0) throws {
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(text.utf8).write(to: url)
+        try FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(-ago)], ofItemAtPath: url.path)
+    }
+
+    func testTrashRemovesTranscriptSideFolderAndLeftovers() throws {
+        let p = try tempPaths()
+        let id = "cccccccc-0000-4000-8000-000000000000"
+        let file = p.projectsDir.appendingPathComponent("-proj/\(id).jsonl")
+        let leftovers = [
+            p.projectsDir.appendingPathComponent("-proj/\(id)/tool-results/a.txt"),
+            p.fileHistoryDir.appendingPathComponent("\(id)/abc@v1"),
+            p.sessionEnvDir.appendingPathComponent("\(id)/env"),
+            p.debugDir.appendingPathComponent("\(id).txt"),
+            p.todosDir.appendingPathComponent("\(id)-agent-\(id).json"),
+            p.tmpDir.appendingPathComponent("-proj/\(id)/scratchpad/big.xlsx"),
+        ]
+        let other = p.fileHistoryDir.appendingPathComponent("dddddddd-0000-4000-8000-000000000000/x")
+        for u in [file, other] + leftovers { try touch(u) }
+        let s = HistorySession(sessionId: id, fileURL: file, cwd: "/", name: "x", lastPrompt: nil, model: nil, lastActive: Date(), bytes: 1)
+
+        XCTAssertEqual(Leftovers.size(Leftovers.allPaths(s, p)), 7)
+        try HistoryScanner.trash(s, paths: p)
+        for u in [file] + leftovers { XCTAssertFalse(FileManager.default.fileExists(atPath: u.path), u.path) }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: other.path), "another session's data is untouched")
+    }
+
+    func testCreatedFilesOnlyListsNewProjectFilesWithState() throws {
+        let p = try tempPaths()
+        let proj = p.claudeDir.deletingLastPathComponent().appendingPathComponent("repo")
+        let (fresh, edited, committed, gone, existing) = ("new.py", "edited.md", "kept.swift", "gone.txt", "old.txt")
+        let scratch = p.tmpDir.appendingPathComponent("-repo/s/scratchpad/t.py").path
+        func line(_ type: String, _ path: String, _ ts: String = "2020-01-01T00:00:00.000Z") -> String {
+            #"{"type":"user","timestamp":"\#(ts)","toolUseResult":{"type":"\#(type)","filePath":"\#(path)"}}"#
+        }
+        func f(_ n: String) -> URL { proj.appendingPathComponent(n) }
+        let lines = [line("create", f(fresh).path), line("create", f(edited).path), line("create", f(committed).path),
+                     line("create", f(gone).path), line("update", f(existing).path), line("create", scratch),
+                     line("create", p.claudeDir.appendingPathComponent("memory/m.md").path)]
+        let transcript = p.projectsDir.appendingPathComponent("-repo/s.jsonl")
+        try touch(transcript, lines.joined(separator: "\n"))
+        let now = Date().timeIntervalSince1970 - ISO8601DateFormatter().date(from: "2020-01-01T00:00:00Z")!.timeIntervalSince1970
+        for n in [fresh, committed, existing] { try touch(f(n), ago: now) }
+        try touch(f(edited), ago: 0)
+        try touch(URL(fileURLWithPath: scratch))
+        let s = HistorySession(sessionId: "s", fileURL: transcript, cwd: proj.path, name: "x", lastPrompt: nil, model: nil, lastActive: Date(), bytes: 1)
+
+        let files = Leftovers.createdFiles(s, p) { $0.lastPathComponent == committed }
+        XCTAssertEqual(files.map(\.url.lastPathComponent), [edited, committed, fresh])
+        XCTAssertEqual(files.map(\.state), [.changedSince, .inGit, .untracked])
+        XCTAssertEqual(files.map(\.canDelete), [true, false, true])
+    }
+
+    func testOrphansAreOldLeftoversWithoutTranscriptOrLiveSession() throws {
+        let p = try tempPaths()
+        let (kept, live, orphan, fresh) = ("aaaaaaaa-0000-4000-8000-000000000000", "bbbbbbbb-0000-4000-8000-000000000000",
+                                           "cccccccc-0000-4000-8000-000000000000", "dddddddd-0000-4000-8000-000000000000")
+        let day: TimeInterval = 2 * 86400
+        try touch(p.projectsDir.appendingPathComponent("-proj/\(kept).jsonl"))
+        try touch(p.projectsDir.appendingPathComponent("-proj/memory/MEMORY.md"), ago: day)
+        for id in [kept, live, orphan] {
+            try touch(p.sessionEnvDir.appendingPathComponent("\(id)/x"))
+            try FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(-day)],
+                                                  ofItemAtPath: p.sessionEnvDir.appendingPathComponent(id).path)
+        }
+        try touch(p.debugDir.appendingPathComponent("\(orphan).txt"), ago: day)
+        try touch(p.tmpDir.appendingPathComponent("-proj/\(orphan)"), ago: day)
+        try touch(p.tmpDir.appendingPathComponent("-proj/\(fresh)"))
+        try touch(p.tmpDir.appendingPathComponent("bundled-skills"), ago: day)
+
+        let found = Leftovers.orphans(p, keep: [live]).map(\.lastPathComponent).sorted()
+        XCTAssertEqual(found, [orphan, "\(orphan).txt", orphan].sorted())
     }
 
     func testActiveRange() {
@@ -320,6 +388,6 @@ final class SessionBarCoreTests: XCTestCase {
 
         // Leave no trace: drop the background record and the transcript.
         _ = try? await cli.run(["rm", s.shortId])
-        for h in HistoryScanner(paths: cli.paths).scan() where h.sessionId == s.sessionId { try? HistoryScanner.trash(h) }
+        for h in HistoryScanner(paths: cli.paths).scan() where h.sessionId == s.sessionId { try? HistoryScanner.trash(h, paths: cli.paths) }
     }
 }

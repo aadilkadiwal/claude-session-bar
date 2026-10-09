@@ -9,6 +9,7 @@ A macOS menu bar app for [Claude Code](https://claude.com/claude-code):
 - **Rename** running sessions (types `/rename`) and closed ones.
 - **New session without a terminal**: pick a folder, then start it for your phone or open it in iTerm.
 - **History**: search, preview (last reply, prompts, duration, tokens), resume in an iTerm tab, delete one or many, one-click cleanup of empty sessions, and keep history for 1 week, 2 weeks or 30 days.
+- **Full cleanup**: deleting a session also removes its scratchpad, undo backups and other data Claude Code keeps for it, and lets you pick files it created in your project. Settings shows Claude's storage and clears leftovers of sessions that are already gone.
 
 Design walkthrough with clickable mockups and every flow: [`docs/design.html`](docs/design.html).
 
@@ -55,7 +56,9 @@ Session Bar has no server and no login. It reads what Claude Code already writes
 | Waiting / finished alerts | `waitingFor` and `status` in each session's pid file, read every 3 s (no process started) |
 | Rename | Running: types `/rename <name>` (same safety rules as the phone button). Closed: appends a `custom-title` line, as Claude Code does. |
 | Check for updates | `git fetch` in the folder the installer built from; Update pulls and re-runs `install.sh` |
-| Delete / Clean up | Moves transcripts to the Trash, so you can still restore them |
+| Delete / Clean up | Moves the transcript and everything Claude Code keeps for that session to the Trash, so you can still restore them: side folder, scratchpad (`/private/tmp/claude-<uid>/<project>/<id>`), undo backups (`file-history`), `session-env`, debug log, todos, tasks |
+| Files a session created | Read from the transcript's Write results (`"type":"create"`). Shown when you delete one session, none ticked. Files in git can't be ticked; files changed after the session are flagged. Files made by shell commands aren't listed. |
+| Claude storage / leftovers | Settings shows sizes of conversations, scratchpads and undo backups, and finds per-session data whose transcript is gone (unused for over a day). Clean up by hand or once a day automatically. |
 
 Notes:
 - Usage only updates while a Claude Code session is active, because that's when Claude Code sends it. The dropdown shows how old the numbers are.
