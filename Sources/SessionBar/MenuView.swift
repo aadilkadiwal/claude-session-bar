@@ -228,10 +228,7 @@ struct MenuView: View {
             case .renameClosed(let h):
                 RenameField(initial: h.name) { name in confirm = nil; if let name { model.rename(h, to: name) } }
             case .delete(let h):
-                Text("Move this session to the Trash?").fixedSize(horizontal: false, vertical: true)
-                Spacer()
-                Button("Cancel") { confirm = nil }
-                Button("Delete", role: .destructive) { confirm = nil; model.delete([h]) }.keyboardShortcut(.defaultAction)
+                DeleteConfirm(model: model, sessions: [h], compact: true) { confirm = nil }
             }
         }
         .font(.system(size: 12))
@@ -457,5 +454,75 @@ struct HoverRow<Content: View>: View {
             .contentShape(Rectangle())
             .onHover { hover = $0 }
             .onTapGesture(perform: action)
+    }
+}
+
+struct DeleteConfirm: View {
+    @ObservedObject var model: AppModel
+    let sessions: [HistorySession]
+    var compact = false
+    let onDone: () -> Void
+    @State private var bytes: Int64?
+    @State private var files: [CreatedFile] = []
+    @State private var picked = Set<URL>()
+    @State private var showFiles = false
+
+    private var title: String {
+        let what = sessions.count == 1 ? "this session" : "\(sessions.count) sessions"
+        return "Move \(what) and Claude's data for \(sessions.count == 1 ? "it" : "them") (\(bytes.map(Fmt.bytes) ?? "counting…")) to the Trash?"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Text(title).fixedSize(horizontal: false, vertical: true)
+                    .help("Conversation, scratchpad, undo backups and other files Claude Code keeps for this session")
+                Spacer()
+                Button("Cancel", action: onDone)
+                Button(picked.isEmpty ? "Delete" : "Delete + \(picked.count) file\(picked.count == 1 ? "" : "s")", role: .destructive) {
+                    model.delete(sessions, files: Array(picked))
+                    onDone()
+                }.keyboardShortcut(.defaultAction)
+            }
+            if !files.isEmpty {
+                DisclosureGroup(isExpanded: $showFiles) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        ForEach(files) { fileRow($0) }
+                        Text("Only files Claude made with its Write tool are listed. Nothing here is deleted unless you tick it.")
+                            .font(.system(size: 10)).foregroundStyle(.secondary)
+                    }
+                    .padding(.top, 2)
+                } label: {
+                    Text("Files this session created in \(Fmt.folderName(sessions[0].cwd)) (\(files.count))")
+                }
+            }
+        }
+        .task(id: sessions.map(\.sessionId)) {
+            let r = await model.deletePreview(sessions)
+            (bytes, files, picked) = (r.bytes, r.files, [])
+        }
+    }
+
+    private func fileRow(_ f: CreatedFile) -> some View {
+        HStack(spacing: 6) {
+            Toggle("", isOn: Binding(get: { picked.contains(f.url) },
+                                     set: { if $0 { picked.insert(f.url) } else { picked.remove(f.url) } }))
+                .toggleStyle(.checkbox).labelsHidden().disabled(!f.canDelete)
+            Text(relative(f.url)).lineLimit(1).truncationMode(.middle).help(f.url.path)
+            Spacer(minLength: 4)
+            switch f.state {
+            case .inGit: Label("in git, kept", systemImage: "lock.fill").foregroundStyle(.secondary)
+            case .changedSince: Label("changed since", systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+            case .untracked: Text("untracked").foregroundStyle(.secondary)
+            }
+            if !compact { Text(Fmt.bytes(f.bytes)).monospacedDigit().foregroundStyle(.secondary).frame(width: 60, alignment: .trailing) }
+        }
+        .font(.system(size: 11))
+        .contextMenu { Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([f.url]) } }
+    }
+
+    private func relative(_ url: URL) -> String {
+        let root = sessions[0].cwd + "/"
+        return url.path.hasPrefix(root) ? String(url.path.dropFirst(root.count)) : Fmt.shortPath(url.path)
     }
 }

@@ -194,14 +194,7 @@ struct SessionsTab: View {
     @ViewBuilder private var bottomBar: some View {
         HStack {
             if let pending = pendingDelete {
-                Text("Move \(pending.count) session\(pending.count == 1 ? "" : "s") (\(Fmt.bytes(pending.reduce(0) { $0 + $1.bytes }))) to the Trash?")
-                Spacer()
-                Button("Cancel") { pendingDelete = nil }
-                Button("Delete", role: .destructive) {
-                    model.delete(pending)
-                    checked.subtract(pending.map(\.sessionId))
-                    pendingDelete = nil
-                }.keyboardShortcut(.defaultAction)
+                DeleteConfirm(model: model, sessions: pending) { pendingDelete = nil }
             } else {
                 let picked = checkedSessions
                 Text(picked.isEmpty ? "\(rows.count) sessions · tick closed ones to delete several at once · double-click to open"
@@ -353,6 +346,7 @@ struct SettingsTab: View {
     @StateObject private var updater = Updater()
     @State private var cutoff = Calendar.current.date(byAdding: .day, value: -7, to: Date()) ?? Date()
     @State private var confirmCleanup = false
+    @AppStorage("autoCleanLeftovers") private var autoCleanLeftovers = false
 
     private var old: [HistorySession] { model.closed.filter { $0.lastActive < cutoff } }
 
@@ -384,6 +378,27 @@ struct SettingsTab: View {
                 }
             } header: { Text("Clean up now") } footer: {
                 Text("This frees space on your Mac. Sessions listed on claude.ai or in the phone app are kept on Anthropic's servers and aren't affected.")
+                    .font(.system(size: 11)).foregroundStyle(.secondary)
+            }
+
+            Section {
+                if let st = model.storage {
+                    LabeledContent("Conversations", value: Fmt.bytes(st.conversations))
+                    LabeledContent("Scratchpads", value: Fmt.bytes(st.scratchpads))
+                    LabeledContent("Undo backups", value: Fmt.bytes(st.undoBackups))
+                    HStack {
+                        Text(st.orphans.isEmpty ? "No leftovers from deleted sessions"
+                             : "\(st.orphans.count) leftover\(st.orphans.count == 1 ? "" : "s") from deleted sessions · \(Fmt.bytes(st.orphanBytes))")
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Button("Clean up leftovers") { Task { await model.cleanLeftovers() } }.disabled(st.orphans.isEmpty)
+                    }
+                } else {
+                    HStack { ProgressView().controlSize(.small); Text("Measuring…").foregroundStyle(.secondary) }
+                }
+                Toggle("Clean up leftovers automatically once a day", isOn: $autoCleanLeftovers)
+            } header: { Text("Claude storage") } footer: {
+                Text("Leftovers are scratchpads, undo backups and other files Claude Code keeps per session, whose session was deleted or expired. Anything used in the last day is kept. They go to the Trash.")
                     .font(.system(size: 11)).foregroundStyle(.secondary)
             }
 
@@ -423,6 +438,7 @@ struct SettingsTab: View {
         }
         .formStyle(.grouped)
         .onAppear { updater.check() }
+        .task { await model.refreshStorage() }
     }
 }
 
